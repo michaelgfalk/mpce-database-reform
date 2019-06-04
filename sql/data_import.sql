@@ -48,7 +48,7 @@ WHERE
 /*
 TO DO: client_codes need to be converted to person_codes first.
 */
-INSERT INTO stamping (
+INSERT INTO mpce.stamping (
 	stamped_edition, permitted_dealer, attending_inspector, attending_adjoint,
 	stamped_at_place, stamped_at_location_type, copies_stamped, volumes_stamped,
 	date, ms_number, folio, citation, page_stamped,
@@ -61,7 +61,15 @@ SELECT ID_EditionName, ID_DealerName, ID_AgentA, ID_AgentB,
 FROM manuscripts.manuscript_events;
 
 -- Populate parisian_stock_auction
+INSERT INTO mpce.parisian_stock_auction (
+	auction_id, ms_number, previous_owner, auction_reason
+)
+SELECT mse.salesNumber, mse.msNumber, mse.Client_Code, ar.type
+FROM manuscripts.manuscript_sales_events AS mse
+	LEFT JOIN mpce.auction_reason AS ar
+	ON mse.code = ar.ID;
 
+INSERT INTO 
 
 -- Populate parisian_stock_sale
 /*
@@ -74,6 +82,7 @@ Some notes:
 -	The person data needs to be consolidated first, as for other tables
 */
 INSERT INTO mpce.parisian_stock_sale
+
 
 
 UPDATE manuscripts.manuscript_events_sales 	-- need to make the units match

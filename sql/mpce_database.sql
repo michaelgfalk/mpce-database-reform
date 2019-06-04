@@ -221,6 +221,12 @@ CREATE TABLE IF NOT EXISTS corporate_entity ( -- New table
 	PRIMARY KEY (`entity_code`)
 );
 
+CREATE TABLE IF NOT EXISTS is_member_of ( -- New table
+	`person_code` CHAR(6) NOT NULL,
+	`entity_code` INT NOT NULL,
+	PRIMARY KEY (`person_code`, `entity_code`)
+);
+
 -- Other types of person, and additional metadata
 
 CREATE TABLE IF NOT EXISTS stn_client ( -- From clients
@@ -245,11 +251,11 @@ CREATE TABLE IF NOT EXISTS stn_client_person ( -- From clients_people
 	PRIMARY KEY (`client_code`, `person_code`)
 );
 
-CREATE TABLE IF NOT EXISTS stn_client_corporate_entity ( -- New table
+CREATE TABLE IF NOT EXISTS stn_client_corporate_entity( -- New table
 	`client_code` CHAR(6) NOT NULL,
-	`entity_code` INT NOT NULL,
-	PRIMARY KEY (`client_code`, `entity_code`)
-);
+	`entity_code` CHAR(6) NOT NULL,
+	PRIMARY KEY (`client_code`,`entity_code`)
+)
 
 CREATE TABLE IF NOT EXISTS profession ( -- From professions
 	`profession_code` CHAR(5) NOT NULL,
@@ -282,9 +288,15 @@ CREATE TABLE IF NOT EXISTS edition_author ( -- From manuscript_books_authors
 
 CREATE TABLE IF NOT EXISTS author_type ( -- New table
 	`id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	`type` VARCHAR(20)
+	`type` VARCHAR(20),
+	`definition` TEXT
 );
-INSERT INTO `author_type` (`type`) VALUES ("Primary"),("Secondary"),("Editor"),("Translator");
+INSERT INTO `author_type` (`type`,`definition`)
+VALUES
+	("Primary","A person mainly responsible for the original content of the work."),
+	("Secondary","A person who contributes to the original content of the work."),
+	("Editor","A person who finds, selects, arranges or otherwise shapes the work, without primarily being responsible for its original content."),
+	("Translator","A person who rewrites the work in a new language.");
 
 /*
 
