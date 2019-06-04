@@ -1,1 +1,4 @@
 hidden/
+*.pyc
+/dist/
+/*.egg-info

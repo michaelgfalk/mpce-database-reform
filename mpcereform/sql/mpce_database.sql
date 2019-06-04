@@ -18,9 +18,8 @@ AUTHOR: Michael Falk
 
 Table definitions for entire MPCE database, including MMF-2.
 
-To populate with data from the existing 'manuscripts' database,
-run 'data_import.sql'. This SQL file only populates small lookup
-tables.
+The python module of which this forms a part contains methods for
+importing the data from the existing 'manuscripts database'.
 
 */
 
@@ -255,7 +254,7 @@ CREATE TABLE IF NOT EXISTS stn_client_corporate_entity( -- New table
 	`client_code` CHAR(6) NOT NULL,
 	`entity_code` CHAR(6) NOT NULL,
 	PRIMARY KEY (`client_code`,`entity_code`)
-)
+);
 
 CREATE TABLE IF NOT EXISTS profession ( -- From professions
 	`profession_code` CHAR(5) NOT NULL,
@@ -564,6 +563,13 @@ CREATE TABLE IF NOT EXISTS `consignment` ( -- From Excel spreadsheet
   `customs_register_notes` TEXT,				/* notes arising from examination of the customs registers */
   PRIMARY KEY (`ID`)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8;
+
+CREATE TABLE IF NOT EXISTS `consignment_owner` (
+	`ID` INT NOT NULL AUTO_INCREMENT,
+	`consignment` INT, -- The ID of the consignment
+	`person_code` CHAR(6), -- The ID of the owner
+	PRIMARY KEY (`ID`)
+);
 
 CREATE TABLE IF NOT EXISTS `confiscation` ( -- No data as yet
   `ID` INT(10) NOT NULL AUTO_INCREMENT,     	/* !PK: numeric ID (i.e. entry order) */
