@@ -75,6 +75,7 @@ class LocalDB():
             FROM manuscripts.manuscript_books
             """
         )
+        self.conn.commit()
         print(f'{cur.rowcount} works copied.')
         
         # Copy categorisation data
@@ -104,10 +105,81 @@ class LocalDB():
             INSERT INTO mpce.work_keyword (work_code, keyword_code)
             VALUES (%s, %s)
         """, keywords_split)
+        self.conn.commit()
         print(f'{cur.rowcount} keyword assignments copied.')
 
-        # Import rest of keyword data (keywords, tags, assocs, parisian categories)
-
-        # Commit changes and close cursor
+        # Import rest of keyword data
+        cur.execute("""
+            INSERT INTO mpce.parisian_category
+            SELECT * FROM manuscripts.parisian_keywords
+        """)
+        cur.execute("""
+            INSERT INTO mpce.keyword
+            SELECT * FROM manuscripts_keyword
+        """)
+        cur.execute("""
+            INSERT INTO mpce.tag
+            SELECT * FROM manuscripts.tags
+        """)
         self.conn.commit()
+        print('Parisian categories, keywords and tags imported.')
+
+        # Import keyword associations (need some massaging)
+        cur.execute("""
+            INSERT INTO mpce.keyword_free_associations (keyword_1, keyword_2)
+            SELECT k1.keyword_code AS keyword_1, k2.keyword_code AS keyword_2
+            FROM manuscripts.keywords AS k1, manuscripts.keywords AS k2, keyword_free_associations AS ka
+            WHERE
+	            k1.keyword = ka.keyword AND
+	            k2.keyword = ka.association
+        """)
+        cur.execute("""
+            INSERT INTO mpce.keyword_tree_associations (keyword_1, keyword_2)
+            SELECT k1.keyword_code AS keyword_1, k2.keyword_code AS keyword_2
+            FROM manuscripts.keywords AS k1, manuscripts.keywords AS k2, keyword_tree_associations AS ka
+            WHERE
+                k1.keyword = ka.keyword AND
+                k2.keyword = ka.association
+        """)
+        self.conn.commit()
+        print('Keyword associations imported.')
+
+        # Close cursor
         cur.close()
+
+    def import_editions(self):
+        """Imports edition data from manuscripts db"""
+
+        # Open cursor
+        cur = self.conn.cursor()
+
+        cur.execute("""
+            INSERT INTO mpce.edition (
+                edition_code, work_code, edition_status, edition_type,
+                full_book_title, short_book_titles, translated_title,
+                translated_language, languages, imprint_publishers,
+                actual_publishers, imprint_publication_places, 
+                actual_publication_places, imprint_publication_years,
+                actual_publication_years, pages, quick_pages,
+                number_of_volumes, section, edition, book_sheets,
+                notes, research_notes
+            )
+            SELECT book_code, super_book_code, edition_status,
+                edition_type, full_book_title, short_book_titles,
+                translated_title, translated_language, languages,
+                stated_publishers, actual_publishers,
+                stated_publication_places, actual_publication_places,
+                stated_publication_years, actual_publication_years,
+                pages, quick_pages, number_of_volumes, section,
+                edition, book_sheets, notes, research_notes
+            FROM manuscripts.manuscripts_books_editions
+        """)
+
+    def import_agents(self):
+        """Imports persons and corporate entities"""
+
+        #TO DO: Fix up person data in manuscripts database
+
+        pass
+
+    

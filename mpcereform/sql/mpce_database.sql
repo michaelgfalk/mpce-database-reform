@@ -90,11 +90,11 @@ CREATE TABLE IF NOT EXISTS edition ( -- From manuscript_books_editions [books in
 	`translated_title` VARCHAR(750),
 	`translated_language` VARCHAR(50),
 	`languages` VARCHAR(200),
-	`stated_publishers` VARCHAR(1000),
+	`imprint_publishers` VARCHAR(1000),
 	`actual_publishers` VARCHAR(1000),
-	`stated_publication_places` VARCHAR(1000),
+	`imprint_publication_places` VARCHAR(1000),
 	`actual_publication_places` VARCHAR(1000),
-	`stated_publication_years` VARCHAR(1000),
+	`imprint_publication_years` VARCHAR(1000),
 	`actual_publication_years` VARCHAR(10),
 	`pages` VARCHAR(250),
 	`quick_pages` VARCHAR(10),
@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS edition ( -- From manuscript_books_editions [books in
 	`section` VARCHAR(10),
 	`edition` VARCHAR(100),
 	`book_sheets` VARCHAR(200),
+	`known_pirated` BIT DEFAULT 0,
 	`notes` VARCHAR(4000),
 	`research_notes` VARCHAR(1000),
 	PRIMARY KEY (`edition_code`)
@@ -110,8 +111,8 @@ CREATE TABLE IF NOT EXISTS edition ( -- From manuscript_books_editions [books in
 -- Book classification tables
 
 CREATE TABLE IF NOT EXISTS parisian_category (
-	`parisian_keyword_code` CHAR(5) NOT NULL,
-	`parisian_keyword` VARCHAR(250) NOT NULL,
+	`parisian_category_code` CHAR(5) NOT NULL,
+	`name` VARCHAR(250) NOT NULL,
 	`ancestor1` CHAR(5),
 	`ancestor2` CHAR(5),
 	`ancestor3` CHAR(5),
