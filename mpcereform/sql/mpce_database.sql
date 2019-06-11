@@ -198,7 +198,7 @@ about partnerships, government agencies etc.
 
 CREATE TABLE IF NOT EXISTS person ( -- From people
 	`person_code` CHAR(6) NOT NULL,
-	`person_name` VARCHAR(155) DEFAULT NULL,
+	`name` VARCHAR(155) DEFAULT NULL,
 	`sex` CHAR(1) DEFAULT NULL,
 	`title` VARCHAR(50) DEFAULT NULL,
 	`other_names` VARCHAR(1000) DEFAULT NULL,
@@ -280,7 +280,7 @@ CREATE TABLE IF NOT EXISTS corporate_entity_profession ( -- New table
 
 CREATE TABLE IF NOT EXISTS edition_author ( -- From manuscript_books_authors
 	`edition_code` CHAR(12) NOT NULL,
-	`author_code` CHAR(9) NOT NULL,
+	`author_code` CHAR(6) NOT NULL, -- Person code of the author
 	`author_type` int NOT NULL,
 	`certain` bit(1),
 	PRIMARY KEY (`edition_code`,`author_code`,`author_type`)
@@ -443,8 +443,8 @@ VALUES
   (1, "Contrefait", "The edition was counterfeit."),
   (2, "Nouveauté", "The edition was a 'novelty' unknown to the authorities."),
   (3, "Prohibé", "The edition was prohibited."),
-  (4, "Comme venant en nombre à particulier", "The edition arrived in a particular quantity."),
-  (5, "A mauvaise addresse", "The consignment was wrongly addressed."),
+  (4, "Comme venant en nombre à un particulier", "A particular person received a suspicious quanitity of the edition."),
+  (5, "A mauvaise addresse", "The consignment had a suspcious address."),
   (6, "Fausse permission", "The permission for this consignment was false or forged."),
   (7, "Faute de renouvellement de privilege", "The privilege to sell this edition had lapsed."),
   (8, "En attendant ordre du magistrate", "The books were turned over to a magistrate for decision."),
@@ -464,12 +464,14 @@ INSERT INTO
 VALUES
   (1, "Condamné au pilon", "The books were condemned to destruction."),
   (2, "Rayé de la liste des permissions tacites", "The books were removed from the list of tacitly permitted works."),
-  (3, "A rendre par ordre particulier", "The books were sent on under a particular order."),
-  (4, "A rendre par ordre general", "The books were sent on under a general order."),
-  (5, "A rendre au propriétaire du privilege", "The books were set to the owner of the privilege."),
-  (6, "A attendre par jugemens du Permis", "The books were held, awaiting the judgement of the Permis."),
-  (7, "Une autre", "Some other decision was made."),
-  (8, "Inconnue", "Decision unknown.");
+  (3, "Ajouté à la liste des permissions tacites", "The books were added to the list of tacitly permitted works."),
+  (4, "Trouvé sur la liste des permissions tacites", "The books were found on the list of tacitly permitted works."),
+  (5, "A rendre par ordre particulier", "The books were sent on under a particular order."),
+  (6, "A rendre par ordre general", "The books were sent on under a general order."),
+  (7, "A rendre au propriétaire du privilege", "The books were set to the owner of the privilege."),
+  (8, "A attendre par jugemens du Permis", "The books were held, awaiting the judgement of the Permis."),
+  (9, "Une autre", "Some other decision was made."),
+  (10, "Inconnue", "Decision unknown.");
   
 CREATE TABLE IF NOT EXISTS auction_role ( -- Currently only used for parisian_stock_auction
 	`ID` INT NOT NULL,
@@ -555,10 +557,10 @@ CREATE TABLE IF NOT EXISTS `consignment` ( -- From Excel spreadsheet
   `addressee` CHAR(6),							/* !FK: person_code for addressee */
   `origin_text` VARCHAR(250),					/* the origin of the consignment as recorded in the resgister */
   `origin_code` CHAR(5),						/* !FK: place_code of consingment origin */
-  `signatory_text` VARCHAR(250),			/* the name of the person who collected the residual books, as given in the register, including 'per' or 'on behalf of' etc */ 
-  `signatory` CHAR(6),					/* !FK: person_code of the person who collected the residual books */
-  `signatory_signed` BIT,						/* did the collector sign the register themself? 1 = yes, 0 = no */
-  `signatory_signed_on_behalf_of` CHAR(6),		/* !FK: person_code of the person who the signatory signed on behalf of */
+  `customs_signatory_text` VARCHAR(250),			/* the name of the person who collected the residual books, as given in the register, including 'per' or 'on behalf of' etc */ 
+  `customs_signatory` CHAR(6),					/* !FK: person_code of the person who collected the residual books */
+  `customs_signatory_signed` BIT,						/* did the collector sign the register themself? 1 = yes, 0 = no */
+  `person_whom_customs_signatory_represented` CHAR(6),		/* !FK: person_code of the person who the signatory signed on behalf of */
   `acquit_a_caution` enum('yes','no','not specified','not known'), /* did the consignment have an acquit a caution? */
   `confiscation_register_notes` TEXT,			/* notes arising from examination of the confiscation registers */
   `customs_register_notes` TEXT,				/* notes arising from examination of the customs registers */

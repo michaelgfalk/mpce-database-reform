@@ -2,7 +2,8 @@
 
 import mysql.connector as mysql
 import re
-from importlib_resources import read_text
+from importlib.resources import read_text, path
+from openpyxl import load_workbook
 
 class LocalDB():
     """Class for managing connection to database server"""
@@ -175,11 +176,107 @@ class LocalDB():
             FROM manuscripts.manuscripts_books_editions
         """)
 
-    def import_agents(self):
-        """Imports persons and corporate entities"""
+    def resolve_agents(self):
+        """Imports persons and corporate entities.
+        
+        This method reforms all the person data in the database,
+        based on the information in the manuscripts database, and 
+        in the provided spreadsheets."""
 
-        #TO DO: Fix up person data in manuscripts database
+        cur = self.conn.cursor()
+        
+        # Import basic client and person data
+        print('Importing existing client and person data...')
+        cur.execute("""
+            INSERT INTO mpce.person (
+                person_code, name, sex, title, other_names,
+                designation, status, birth_date, death_date,
+                notes
+            )
+            SELECT person_code, person_name, sex, title, other_names,
+                designation, status, birth_date, death_date,
+                notes
+            FROM manuscripts.people
+        """)
+        print(f'{cur.rowcount()} persons imported from `manuscripts.people` into `mpce.person`.')
+        cur.execute("""
+            INSERT INTO mpce.stn_client
+            SELECT * FROM manuscripts.clients
+        """)
+        print(f'{cur.rowcount} clients imported from `manuscripts.clients` into `mpce.stn_client`.' )
 
-        pass
+        # Import author data
+        print('Resolving authors...')
+        with path('mpcereform.spreadsheets', 'author_person.xlsx') as path:
+            author_person = load_workbook(path, read_only = True, keep_vba = False)
+        # Get list of all authors who already have person codes
+        assigned_authors = []
+        for row in author_person.iter_rows():
+            # If the match is correct...
+            if row[6] == 'Y':
+                # ... append (person_code, author_code)
+                assigned_authors.append((row[0], row[2]))
+        
+        # Create temporary author_person table
+        cur.execute("""
+            CREATE TEMPORARY TABLE mpce.author_person (
+                person_code CHAR(6),
+                author_code CHAR(9),
+                PRIMARY KEY(author code, person_code)
+            )
+        """)
+        cur.executemany("""
+            INSERT INTO mpce.author_person
+            VALUES (%s, %s)
+        """, seq_of_params = assigned_authors)
+        self.conn.commit()
+        print(f'{cur.rowcount} authors already have person codes.')
+
+        # Get all the authors without a person code
+        cur.execute("""
+            SELECT a.author_name
+            FROM mpce.author_person AS ap
+            LEFT JOIN manuscripts.authors AS a
+                ON ap.author_code = a.author_code
+            WHERE ap.person_code IS NULL
+        """)
+        unassigned_authors = cur.fetchall()
+        new_person_codes = self._get_person_code_sequence(len(unassigned_authors), cur)
+        cur.executemany("""
+            INSERT INTO mpce.person (person_code, name)
+            VALUES (%s, %s)
+        """, seq_of_params = [(code, name) for code, (name,) in zip(new_person_codes, unassigned_authors)])
+        print(f'{cur.rowcount} authors assigned new person codes...')
+        self.conn.commit()
+
+        # Now import authorship data 
+        # TO DO
+
+    def _get_person_code_sequence(self, n, cursor = None):
+        """Return a list of the next n free person_codes"""
+
+        # Regex to reduce the ids to their numerical components
+        reduce_id_rgx = re.compile(r'^id0*')
+
+        # Get a cursor
+        if cursor is not None:
+            cur = cursor
+        else:
+            cur = self.conn.cursor()
+        
+        # Retrieve person codes, strip 'id' and leading 0s, convert to int
+        cur.execute("SELECT person_code FROM mpce.person")
+        person_codes = cur.fetchall()
+        person_codes = [int(reduce_id_rgx.sub('', id)) for id in person_codes]
+        
+        # Get the maximum numeric id
+        next_id = max(person_codes) + 1
+
+        # Return list of codes
+        frame = 'id0000'
+        return [frame[:-len(str(id))] + str(id) for id in range(next_id, next_id + n)]
+
+
+        
 
     
