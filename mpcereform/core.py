@@ -282,6 +282,166 @@ class LocalDB():
         # Finish
         cur.close()
 
+    def import_new_tables(self):
+        """Imports new MPCE data tables from manuscripts database."""
+
+        cur = self.conn.cursor()
+
+        print(f'Importing new datasets from manuscripts database ...')
+        
+        # L'estampillage de 1788
+        cur.execute("""
+            INSERT INTO mpce.stamping (
+                ID, stamped_edition, permitted_dealer,
+                attending_inspector, attending_adjoint,
+                stamped_at_place, stamped_at_location_type,
+                copies_stamped, volumes_stamped, date,
+                ms_number, folio, citation, page_stamped,
+                edition_notes, event_notes, article,
+                date_entered, entered_by_user
+            )
+            SELECT
+                ID, ID_EditionName, ID_DealerName,
+                ID_AgentA, ID_AgentB,
+                ID_PlaceName, EventLocation,
+                EventCopies, EventVols, EventDate,
+                ID_Archive, EventFolioPage, EventCitation, EventPageStamped,
+                EventNotes, EventOther, EventArticle,
+                DateEntered, EventUser
+            FROM manuscripts.manuscript_events
+        """)
+        self.conn.commit()
+        print(f'{cur.rowcount} stampings copied into `mpce.stamping`.')
+        
+        # Illegal books
+        # First clean up date and title fields
+        cur.execute("""
+            UPDATE manuscripts.manuscript_titles_illegal
+            SET date = NULL
+            WHERE date = 'No date available'
+        """)
+
+        # Import banned books
+        cur.execute("""
+            INSERT INTO mpce.banned_list_record (
+                UUID, work_code, title, author, date, folio, notes
+            )
+            SELECT
+                UUID, illegal_super_book_code, illegal_full_book_title, illegal_author_name,
+                illegal_date, illegal_folio, illegal_notes
+            FROM manuscripts.manuscript_titles_illegal
+            WHERE
+                record_status <> 'DELETED' AND
+                bastille_book_category == ''
+        """)
+        print(f'{cur.rowcount} banned books added to `mpce.banned_list_record`.')
+        self.conn.commit()
+        
+        # Import bastille register records
+        # Index to speed up import:
+        cur.execute("""
+            CREATE INDEX book_sbc 
+            ON manuscripts.manuscript_books_editions (super_book_code)
+        """)
+        cur.execute("""
+            INSERT INTO mpce.bastille_register_record (
+                UUID, edition_code, work_code, title, 
+                author_name, imprint, publication_year,
+                copies_found, current_volumes, total_volumtes,
+                category, notes
+            )
+            SELECT i.UUID, b.book_code, i.illegal_super_book_code, i.illegal_full_book_title, 
+                i.illegal_author_name, i.bastille_imprint_full, i.illegal_date, 
+                i.bastille_copies_number, i.bastille_current_volumes, i.bastille_total_volumes,
+                i.bastille_book_category, i.illegal_notes
+            FROM manuscripts.manuscript_titles_illegal AS i
+            LEFT JOIN manuscripts.manuscript_books_editions AS b
+                ON  i.illegal_super_book_code = b.super_book_code AND
+                    (i.illegal_date = b.actual_publication_years OR
+                     i.illegal_date = b.stated_publication_years) 
+        """)
+        print(f'{cur.rowcount} bastille register records added to `mpce.bastille_register_record`.')
+        self.conn.commit()
+
+        # Parisian stock auctions
+        cur.execute("""
+            INSERT INTO mpce.parisian_stock_auction (
+                auction_id, ms_number, previous_owner, auction_reason, place
+            )
+            SELECT salesNumber, msNumber, Client_Code, code, Place_Code
+            FROM manuscripts.manuscript_sales_events
+        """)
+        print(f'{cur.rowcount} stock auctions addded to `mpce.parisian_stock_auction`.')
+        self.conn.commit()
+
+        # Auction administrators
+        auction_rgx = re.compile(r'(c[a-z][0-9]{4}) \((\w+)\)')
+
+        # Get all the administrators
+        cur.execute('SELECT salesNumber, ID_Agent FROM manuscripts.manuscript_sales_events')
+        administrators = cur.fetchall()
+        
+        # Make dict of auction_roles
+        cur.execute('SELECT * FROM auction_role')
+        auction_roles = cur.fetchall()
+        auction_roles = {role:id for id,role in auction_roles}
+        
+        # Split and flatten
+        auction_administrator = []
+        for sale, agents in administrators:
+            # Extract data from string and append to list
+            for agent in agents.split(','):
+                mtch = auction_rgx.search(agent)
+                person = mtch.group(1)
+                role = auction_roles[mtch.group(2)]
+                auction_administrator.append((sale, person, role))
+        cur.executemany(
+            'INSERT INTO mpce.auction_administrator VALUES (%s, %s, %s,)',
+            seq_params = auction_administrator
+        )
+        print(f'{cur.rowcount} administration roles added to `mpce.auction_administrator`.')
+        self.conn.commit()
+
+        # Import individual sales
+        cur.execute("""
+            INSERT INTO mpce.parisian_stock_sale (
+                ID, auction_id, purchasher,
+                purchased_edition, sale_type,
+                units_sold, units, volumes_traded,
+                lot_price, date, folio,
+                citation, article_number, edition_notes,
+                event_notes, sale_notes
+            )
+            SELECT
+                ss.ID, ss.ID_SaleAgent, ss.ID_DealerName,
+                ss.ID_EditionName, st.ID,
+                ss.EventCopies,
+                CASE WHEN EventCopiesType = 'packet' THEN 5,
+                    WHEN EventCopiesType = 'copies' THEN 3,
+                    WHEN EventCopiesType = 'privilege' THEN 8,
+                    WHEN EventCopiesType = 'plates' THEN 6,
+                    WHEN EventCopiesType = 'basket' THEN 4,
+                    WHEN EventCopiesType = 'vols' THEN 9,
+                    WHEN EventCopiesType = 'crate' THEN 2
+                    ELSE NULL
+                    END AS units,
+                EventVols, EventLotPrice, EventDate, EventFolioPage,
+                EventCitation, EventArticle, EventNotes,
+                EventOther, EventMoreNotes
+            FROM manuscripts.manuscript_events_sales AS ss
+            LEFT JOIN mpce.sale_type AS st
+                ON ss.sale_type = st.type
+        """)
+        print(f'{cur.rowcount} sales added to `mpce.parisian_stock_sale`.')
+        self.conn.commit()
+
+        # Finish
+        cur.close()
+
+    def import_data_spreadsheets(self):
+        """Imports major data spreadsheets from MPCE."""
+        pass
+
     def resolve_agents(self):
         """Resolves references to persons and corporate entities in the database.
         
@@ -327,13 +487,13 @@ class LocalDB():
             if row[7] == 'Y':
                 # ... append (person_code, author_code)
                 # Assumes that the workbook has the following columns in sheet 0:
-                # person_code, person_name, client_code, author_code, author_name, osa, cosine, correct, notes
+                # person_code, client_code, person_name, author_code, author_name, osa, cosine, correct, notes
                 assigned_authors.append((row[0], row[3]))
         # Create temporary author_person table
         cur.execute("""
             CREATE TEMPORARY TABLE mpce.author_person (
-                person_code CHAR(6),
-                author_code CHAR(9),
+                person_code VARCHAR(255),
+                author_code VARCHAR(255),
                 PRIMARY KEY(author_code, person_code)
             )
         """)

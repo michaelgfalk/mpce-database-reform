@@ -285,11 +285,11 @@ CREATE TABLE IF NOT EXISTS corporate_entity_profession ( -- New table
 );
 
 CREATE TABLE IF NOT EXISTS edition_author ( -- From manuscript_books_authors
-	`ID` INT AUTO_INCREMENT PRIMARY KEY,
 	`edition_code` CHAR(12) NOT NULL,
 	`author` CHAR(6) NOT NULL, -- Person code of the author
 	`author_type` int NOT NULL,
-	`certain` bit(1)
+	`certain` bit(1),
+	PRIMARY KEY(`edition_code`, `author`, `author_type`)
 );
 
 CREATE TABLE IF NOT EXISTS author_type ( -- New table
@@ -567,6 +567,7 @@ CREATE TABLE IF NOT EXISTS `consignment` ( -- From Excel spreadsheet
   `customs_signatory` CHAR(6),					/* !FK: person_code of the person who collected the residual books */
   `customs_signatory_signed` BIT,						/* did the collector sign the register themself? 1 = yes, 0 = no */
   `person_whom_customs_signatory_represented` CHAR(6),		/* !FK: person_code of the person who the signatory signed on behalf of */
+  `collectors` TEXT,							/* String listing all the confiscations register signatories */
   `acquit_a_caution` enum('yes','no','not specified','not known'), /* did the consignment have an acquit a caution? */
   `confiscation_register_notes` TEXT,			/* notes arising from examination of the confiscation registers */
   `customs_register_notes` TEXT,				/* notes arising from examination of the customs registers */
@@ -601,68 +602,59 @@ CREATE TABLE IF NOT EXISTS `confiscation` ( -- No data as yet
   PRIMARY KEY (`ID`)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8;
 
-CREATE TABLE IF NOT EXISTS stamping ( -- From manuscript_events
-	`ID` INT NOT NULL AUTO_INCREMENT, -- PK
-	`stamped_edition` CHAR(12) NOT NULL, -- Which edition was stamped? (edition_code)
+CREATE TABLE IF NOT EXISTS `stamping` ( -- From manuscript_events
+	`ID` INT NOT NULL AUTO_INCREMENT, -- PK [ID]
+	`stamped_edition` CHAR(12) NOT NULL, -- Which edition was stamped? [ID_EditionName] (edition_code)
 	`permitted_dealer` CHAR(6) NOT NULL, -- Who received the permission to sell? [ID_DealerName] (person_code)
 	`attending_inspector` CHAR(6), -- Who was the inspector responsible? [ID_AgentA] (person_code)
 	`attending_adjoint` CHAR(6), -- Who was the attending adjoint? [ID_AgentB] (person_code)
 	`stamped_at_place` CHAR(5), -- Where was the edition stamped? [ID_PlaceName] (place_code)
-	`stamped_at_location_type` VARCHAR(50),
-	`copies_stamped` INT,
-	`volumes_stamped` INT, -- Only one event has data in this field
-	`date` DATE, -- When was it stamped?
-	`ms_number` VARCHAR(50), -- Which MS was the stamping recorded in?
-	`folio` VARCHAR(50), -- On which folio of the MS is the citation?
-	`citation` TEXT, -- The full citation in the MS
-	`page_stamped` VARCHAR(255), -- which page was stamped?
+	`stamped_at_location_type` VARCHAR(50), -- [EventLocation]
+	`copies_stamped` INT, -- [EventCopies]
+	`volumes_stamped` INT, -- Only one event has data in this field [EventVols]
+	`date` DATE, -- When was it stamped? [EventDate]
+	`ms_number` VARCHAR(50), -- Which MS was the stamping recorded in? [ID_Archive]
+	`folio` VARCHAR(50), -- On which folio of the MS is the citation? [EventFolioPage]
+	`citation` TEXT, -- The full citation in the MS [EventCitation]
+	`page_stamped` VARCHAR(255), -- which page was stamped? [EventPageStamped]
 	`edition_notes` TEXT, -- [EventNotes]
 	`event_notes` TEXT, -- [EventOther]
-	`article` VARCHAR(255), -- The article number
-	`date_entered` VARCHAR(255),
-	`entered_by_user` VARCHAR(255),
+	`article` VARCHAR(255), -- The article number [EventArticle]
+	`date_entered` VARCHAR(255), -- [EventDateEntered]
+	`entered_by_user` VARCHAR(255), -- [EventUser]
 	PRIMARY KEY (`ID`)
 );
 
-CREATE TABLE IF NOT EXISTS banned_list_record ( -- From manuscript_titles_illegal
+CREATE TABLE IF NOT EXISTS `banned_list_record` ( -- From manuscript_titles_illegal
 	`ID` INT NOT NULL AUTO_INCREMENT,
 	`UUID` CHAR(36),
 	`work_code` CHAR(12),
 	`title` VARCHAR(750),
-	`date` INT, -- Need to remove 'No date available'
+	`author` VARCHAR(255),
+	`date` DATE, -- Need to remove 'No date available'
 	`folio` VARCHAR(50),
 	`notes` TEXT,
 	PRIMARY KEY(`ID`)
 );
 
-CREATE TABLE IF NOT EXISTS bastille_register_record ( -- From manuscript_titles_illegal
+CREATE TABLE IF NOT EXISTS `bastille_register_record` ( -- From manuscript_titles_illegal
 	`ID` INT NOT NULL AUTO_INCREMENT,
 	`UUID` CHAR(36),
 	`edition_code` CHAR(12),
+	`work_code` CHAR(12), -- To be deleted once data is fully resolved
 	`title` VARCHAR(750),
 	`author_name` VARCHAR(750),
 	`imprint` VARCHAR(750),
 	`publication_year` INT, -- Need to remove 'No date available'
-	`copies_found` VARCHAR(50),
-	`current_volumes` VARCHAR(50),
-	`total_volumes` VARCHAR(50),
+	`copies_found` VARCHAR(255),
+	`current_volumes` VARCHAR(255),
+	`total_volumes` VARCHAR(255),
+	`category` VARCHAR(255),
 	`notes` TEXT,
 	PRIMARY KEY(`ID`)
 );
-
-CREATE TABLE IF NOT EXISTS bastille_book_category (
-	`ID` CHAR(1),
-	`name` VARCHAR(50),
-	`definition` VARCHAR(50),
-	PRIMARY KEY(`ID`)
-);
-INSERT INTO bastille_book_category
-VALUES
-	('R', 'Reliér', 'bound'),
-	('F', 'En feuilles', 'loose sheets'),
-	('B', 'Broché', 'sewn sheets');
 	
-CREATE TABLE IF NOT EXISTS condemnation (
+CREATE TABLE IF NOT EXISTS `condemnation` (
 	`ID` INT NOT NULL AUTO_INCREMENT,
 	`title` VARCHAR(1000),
 	`work_code` CHAR(12), -- !FK: work.work_code
@@ -675,7 +667,7 @@ CREATE TABLE IF NOT EXISTS condemnation (
 	PRIMARY KEY (`ID`)
 );
 
-CREATE TABLE IF NOT EXISTS provincial_inspection ( -- from Excel spreadsheet
+CREATE TABLE IF NOT EXISTS `provincial_inspection` ( -- from Excel spreadsheet
 	`ID` INT NOT NULL AUTO_INCREMENT,
 	`date` DATE,
 	`inspected_in` CHAR(5), -- !FK: place.place_code
@@ -695,7 +687,7 @@ CREATE TABLE IF NOT EXISTS provincial_inspection ( -- from Excel spreadsheet
 	PRIMARY KEY(`ID`)
 );
 
-CREATE TABLE IF NOT EXISTS permission_simple_grant ( -- from Excel spreadsheet
+CREATE TABLE IF NOT EXISTS `permission_simple_grant` ( -- from Excel spreadsheet
 	`ID` INT NOT NULL AUTO_INCREMENT,
 	`dawson_number` INT,
 	`edition_code` CHAR(12), -- !FK: edition.edition_code
@@ -721,25 +713,25 @@ how much.
 
 */
 
-CREATE TABLE IF NOT EXISTS parisian_stock_auction ( -- From manuscript_sales_events
-	`auction_id` CHAR(5), -- An additional pointless ID code
+CREATE TABLE IF NOT EXISTS `parisian_stock_auction` ( -- From manuscript_sales_events
+	`auction_id` CHAR(5), -- PK
 	`ms_number` INT, -- The MS number where the auction is recorded
 	`previous_owner` CHAR(6), -- The person whose books are being sold (person_code)
 	`auction_reason` INT,
+	`place` CHAR(5), -- place auction took place (always pl306)
 	PRIMARY KEY (`auction_id`)
 );
 
-CREATE TABLE IF NOT EXISTS auction_administrator (
+CREATE TABLE IF NOT EXISTS `auction_administrator` (
 	`auction_id` INT NOT NULL, -- ID of the auction
 	`administrator_id` CHAR(6) NOT NULL, -- ID of the administrator
 	`administrator_role` INT NOT NULL,
 	PRIMARY KEY (`auction_id`, `administrator_id`, `administrator_role`)
 );
 
-CREATE TABLE IF NOT EXISTS parisian_stock_sale ( -- From manuscript_events_sales
+CREATE TABLE IF NOT EXISTS `parisian_stock_sale` ( -- From manuscript_events_sales
 	`ID` INT NOT NULL AUTO_INCREMENT,
 	`auction_id` CHAR(5) NOT NULL, -- At which auction did this take place? [ID_SaleAgent]
-	`sold_at` CHAR(6) DEFAULT 'pl306', -- Where did the sale take place? (Always pl306)
 	`purchaser` CHAR(6), -- person_code, [ID_DealerName]
 	`purchased_edition` CHAR(12), -- edition_code [ID_EditionName]
 	`sale_type` INT,
@@ -769,7 +761,7 @@ warehouse, and which titles were gifted to or returned by their clients.
 
 */
 
-CREATE TABLE IF NOT EXISTS stn_order ( -- From orders
+CREATE TABLE IF NOT EXISTS `stn_order` ( -- From orders
 	`order_code` CHAR(9) NOT NULL,
 	`client_code` CHAR(6),
 	`place_code` CHAR(5),
@@ -781,27 +773,27 @@ CREATE TABLE IF NOT EXISTS stn_order ( -- From orders
 	PRIMARY KEY(`order_code`)
 );
 
-CREATE TABLE IF NOT EXISTS stn_order_agent ( -- From orders_agents
+CREATE TABLE IF NOT EXISTS `stn_order_agent` ( -- From orders_agents
 	`order_code` CHAR(9) NOT NULL,
 	`client_code` CHAR(6) NOT NULL,
 	`place_code` CHAR(5),
 	PRIMARY KEY(`order_code`, `client_code`)
 );
 
-CREATE TABLE IF NOT EXISTS stn_order_sent_via ( -- From orders_sent_via
+CREATE TABLE IF NOT EXISTS `stn_order_sent_via` ( -- From orders_sent_via
 	`order_code` CHAR(9) NOT NULL,
 	`client_code` CHAR(6) NOT NULL,
 	`place_code` CHAR(5),
 	PRIMARY KEY(`order_code`, `client_code`)
 );
 
-CREATE TABLE IF NOT EXISTS stn_order_sent_via_place ( -- From orders_sent_via_place
+CREATE TABLE IF NOT EXISTS `stn_order_sent_via_place` ( -- From orders_sent_via_place
 	`order_code` CHAR(9) NOT NULL,
 	`place_code` CHAR(5) NOT NULL,
 	PRIMARY KEY(`order_code`, `place_code`)
 );
 
-CREATE TABLE IF NOT EXISTS stn_transaction ( -- From transactions
+CREATE TABLE IF NOT EXISTS `stn_transaction` ( -- From transactions
 	`transaction_code` CHAR(9) NOT NULL,
 	`order_code` CHAR(9) NOT NULL,
 	`page_or_folio_numbers` VARCHAR(50),
@@ -816,7 +808,7 @@ CREATE TABLE IF NOT EXISTS stn_transaction ( -- From transactions
 	PRIMARY KEY(`transaction_code`, `order_code`) -- Not sure why the composite index
 );
 
-CREATE TABLE IF NOT EXISTS stn_transaction_volumes_exchanged ( -- From transactions_volumes_exchanged
+CREATE TABLE IF NOT EXISTS `stn_transaction_volumes_exchanged` ( -- From transactions_volumes_exchanged
 	`transaction_code` CHAR(9) NOT NULL,
 	`order_code` CHAR(9) NOT NULL,
 	`volume_number` INT NOT NULL,
