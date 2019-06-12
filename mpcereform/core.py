@@ -234,6 +234,10 @@ class LocalDB():
         self.conn.commit()
         cur.close()
 
+    def import_places(self):
+        """Imports place data from manuscripts db"""
+        pass
+
     def import_stn(self):
         """Imports STN data from FBTEE-1"""
 
