@@ -2,3 +2,4 @@ hidden/
 *.pyc
 /dist/
 /*.egg-info
+.vscode
