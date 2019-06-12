@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS parisian_category (
 	`ancestor1` CHAR(5),
 	`ancestor2` CHAR(5),
 	`ancestor3` CHAR(5),
-	PRIMARY KEY (`parisian_keyword_code`)
+	PRIMARY KEY (`parisian_category_code`)
 );
 
 CREATE TABLE IF NOT EXISTS keyword (
@@ -251,6 +251,12 @@ CREATE TABLE IF NOT EXISTS stn_client_person ( -- From clients_people
 	PRIMARY KEY (`client_code`, `person_code`)
 );
 
+CREATE TABLE IF NOT EXISTS stn_client_profession ( -- From clients_professions
+	`client_code` CHAR(6) NOT NULL,
+	`profession_code` CHAR(6) NOT NULL,
+	PRIMARY KEY(`client_code`, `profession_code`)
+);
+
 CREATE TABLE IF NOT EXISTS stn_client_corporate_entity( -- New table
 	`client_code` CHAR(6) NOT NULL,
 	`entity_code` CHAR(6) NOT NULL,
@@ -279,11 +285,11 @@ CREATE TABLE IF NOT EXISTS corporate_entity_profession ( -- New table
 );
 
 CREATE TABLE IF NOT EXISTS edition_author ( -- From manuscript_books_authors
+	`ID` INT AUTO_INCREMENT PRIMARY KEY,
 	`edition_code` CHAR(12) NOT NULL,
-	`author_code` CHAR(6) NOT NULL, -- Person code of the author
+	`author` CHAR(6) NOT NULL, -- Person code of the author
 	`author_type` int NOT NULL,
-	`certain` bit(1),
-	PRIMARY KEY (`edition_code`,`author_code`,`author_type`)
+	`certain` bit(1)
 );
 
 CREATE TABLE IF NOT EXISTS author_type ( -- New table
@@ -515,7 +521,7 @@ INSERT INTO transaction_direction
 VALUES
 	(1,"In"),
 	(2,"Out"),
-	(3,"Stock");
+	(3,"Neutral");
 
 /*
 

@@ -7,9 +7,12 @@ def main():
 
     # Start connection, build schema if necessary
     db = LocalDB()
-
-    # Copy works
+    
+    # Run import methods
     db.import_works()
+    db.import_editions()
+    db.import_stn()
+    db.resolve_agents()
 
 if __name__ == '__main__':
     sys.exit(main())
