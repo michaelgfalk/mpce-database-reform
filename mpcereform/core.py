@@ -4,6 +4,7 @@ import mysql.connector as mysql
 import re
 from importlib.resources import read_text, path
 from openpyxl import load_workbook
+from contextlib import suppress
 
 class LocalDB():
     """Class for managing connection to database server"""
@@ -236,7 +237,16 @@ class LocalDB():
 
     def import_places(self):
         """Imports place data from manuscripts db"""
-        pass
+
+        cur = self.conn.cursor()
+
+        cur.execute("""
+            INSERT INTO mpce.place
+            SELECT * FROM manuscripts.places
+        """)
+        print(f'{cur.rowcount} places imported into `mpce.place`.')
+
+        self.conn.commit()
 
     def import_stn(self):
         """Imports STN data from FBTEE-1"""
@@ -321,8 +331,8 @@ class LocalDB():
         # First clean up date and title fields
         cur.execute("""
             UPDATE manuscripts.manuscript_titles_illegal
-            SET date = NULL
-            WHERE date = 'No date available'
+            SET illegal_date = NULL
+            WHERE illegal_date = 'No date available'
         """)
 
         # Import banned books
@@ -336,7 +346,7 @@ class LocalDB():
             FROM manuscripts.manuscript_titles_illegal
             WHERE
                 record_status <> 'DELETED' AND
-                bastille_book_category == ''
+                bastille_book_category = ''
         """)
         print(f'{cur.rowcount} banned books added to `mpce.banned_list_record`.')
         self.conn.commit()
@@ -344,25 +354,17 @@ class LocalDB():
         # Import bastille register records
         # Index to speed up import:
         cur.execute("""
-            CREATE INDEX book_sbc 
-            ON manuscripts.manuscript_books_editions (super_book_code)
-        """)
-        cur.execute("""
             INSERT INTO mpce.bastille_register_record (
-                UUID, edition_code, work_code, title, 
+                UUID, work_code, title, 
                 author_name, imprint, publication_year,
-                copies_found, current_volumes, total_volumtes,
+                copies_found, current_volumes, total_volumes,
                 category, notes
             )
-            SELECT i.UUID, b.book_code, i.illegal_super_book_code, i.illegal_full_book_title, 
+            SELECT i.UUID, i.illegal_super_book_code, i.illegal_full_book_title, 
                 i.illegal_author_name, i.bastille_imprint_full, i.illegal_date, 
                 i.bastille_copies_number, i.bastille_current_volumes, i.bastille_total_volumes,
                 i.bastille_book_category, i.illegal_notes
             FROM manuscripts.manuscript_titles_illegal AS i
-            LEFT JOIN manuscripts.manuscript_books_editions AS b
-                ON  i.illegal_super_book_code = b.super_book_code AND
-                    (i.illegal_date = b.actual_publication_years OR
-                     i.illegal_date = b.stated_publication_years) 
         """)
         print(f'{cur.rowcount} bastille register records added to `mpce.bastille_register_record`.')
         self.conn.commit()
@@ -379,7 +381,7 @@ class LocalDB():
         self.conn.commit()
 
         # Auction administrators
-        auction_rgx = re.compile(r'(c[a-z][0-9]{4}) \((\w+)\)')
+        auction_rgx = re.compile(r'(c[a-z][0-9]{3,4}) \((\w+)\)')
 
         # Get all the administrators
         cur.execute('SELECT salesNumber, ID_Agent FROM manuscripts.manuscript_sales_events')
@@ -396,11 +398,16 @@ class LocalDB():
             # Extract data from string and append to list
             for agent in agents.split(','):
                 mtch = auction_rgx.search(agent)
-                person = mtch.group(1)
-                role = auction_roles[mtch.group(2)]
+                if mtch:
+                    person = mtch.group(1)
+                    role = auction_roles[mtch.group(2)]
+                else:
+                    person = agent
+                    role = None
                 auction_administrator.append((sale, person, role))
         cur.executemany(
-            'INSERT INTO mpce.auction_administrator VALUES (%s, %s, %s,)',
+            """INSERT INTO mpce.auction_administrator
+            VALUES (%s, %s, %s)""",
             seq_params = auction_administrator
         )
         print(f'{cur.rowcount} administration roles added to `mpce.auction_administrator`.')
@@ -409,7 +416,7 @@ class LocalDB():
         # Import individual sales
         cur.execute("""
             INSERT INTO mpce.parisian_stock_sale (
-                ID, auction_id, purchasher,
+                ID, auction_id, purchaser,
                 purchased_edition, sale_type,
                 units_sold, units, volumes_traded,
                 lot_price, date, folio,
@@ -417,15 +424,15 @@ class LocalDB():
                 event_notes, sale_notes
             )
             SELECT
-                ss.ID, ss.ID_SaleAgent, ss.ID_DealerName,
+                ss.ID, ss.ID_Sale_Agent, ss.ID_DealerName,
                 ss.ID_EditionName, st.ID,
                 ss.EventCopies,
-                CASE WHEN EventCopiesType = 'packet' THEN 5,
-                    WHEN EventCopiesType = 'copies' THEN 3,
-                    WHEN EventCopiesType = 'privilege' THEN 8,
-                    WHEN EventCopiesType = 'plates' THEN 6,
-                    WHEN EventCopiesType = 'basket' THEN 4,
-                    WHEN EventCopiesType = 'vols' THEN 9,
+                CASE WHEN EventCopiesType = 'packet' THEN 5
+                    WHEN EventCopiesType = 'copies' THEN 3
+                    WHEN EventCopiesType = 'privilege' THEN 8
+                    WHEN EventCopiesType = 'plates' THEN 6
+                    WHEN EventCopiesType = 'basket' THEN 4
+                    WHEN EventCopiesType = 'vols' THEN 9
                     WHEN EventCopiesType = 'crate' THEN 2
                     ELSE NULL
                     END AS units,
@@ -434,7 +441,7 @@ class LocalDB():
                 EventOther, EventMoreNotes
             FROM manuscripts.manuscript_events_sales AS ss
             LEFT JOIN mpce.sale_type AS st
-                ON ss.sale_type = st.type
+                ON ss.EventType = st.type
         """)
         print(f'{cur.rowcount} sales added to `mpce.parisian_stock_sale`.')
         self.conn.commit()
@@ -455,8 +462,8 @@ class LocalDB():
 
         cur = self.conn.cursor()
         
-        # Import basic client and person data
-        print('Importing existing client and person data...')
+        # Import basic person data
+        print('Importing existing person data...')
         cur.execute("""
             INSERT INTO mpce.person (
                 person_code, name, sex, title, other_names,
@@ -483,7 +490,9 @@ class LocalDB():
         # Import author data
         print('Resolving authors...')
         with path('mpcereform.spreadsheets', 'author_person.xlsx') as p:
-            author_person = load_workbook(p, read_only = True, keep_vba = False)
+            with suppress(UserWarning):
+                author_person = load_workbook(p, read_only = True, keep_vba = False)
+                print(f'Author-person assignments loaded from {p}')
         # Get list of all authors who already have person codes
         assigned_authors = []
         for row in author_person['author_person'].iter_rows(min_row = 2, values_only = True):
@@ -511,8 +520,8 @@ class LocalDB():
         # Create new persons for all authors without a person_code
         cur.execute("""
             SELECT a.author_name, a.author_code
-            FROM mpce.author_person AS ap
-            LEFT JOIN manuscripts.manuscript_authors AS a
+            FROM manuscripts.manuscript_authors AS a
+            LEFT JOIN mpce.author_person AS ap
                 ON ap.author_code = a.author_code
             WHERE ap.person_code IS NULL
         """)
@@ -530,7 +539,6 @@ class LocalDB():
 
         print(f'{cur.rowcount} authors assigned new person codes...')
         self.conn.commit()
-
         # Now import authorship data 
         cur.execute("""
             INSERT INTO mpce.edition_author (
@@ -546,8 +554,23 @@ class LocalDB():
         print(f'All authors resolved into persons. {cur.rowcount} authorship attributions imported into `mpce.edition_author`.')
         self.conn.commit()
 
-        # TO DO: Apply new profession code to all authors
-
+        # Apply new profession code to all authors
+        cur.execute("""
+            INSERT IGNORE INTO mpce.person_profession
+            SELECT
+                ea.author,
+                CASE WHEN ea.author_type = 1 THEN 'pf014'
+                    WHEN ea.author_type = 2 THEN 'pf014'
+                    WHEN ea.author_type = 3 THEN 'pf310'
+                    WHEN ea.author_type = 4 THEN 'pf227'
+                    ELSE NULL
+                END
+            FROM mpce.edition_author AS ea
+        """)
+        print(
+            f'{cur.rowcount} profession codes assigned to "aucteurs", "redacteurs" and "traducteurs".')
+        self.conn.commit()
+        
         # 
 
         # Finish

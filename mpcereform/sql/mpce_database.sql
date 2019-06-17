@@ -723,10 +723,10 @@ CREATE TABLE IF NOT EXISTS `parisian_stock_auction` ( -- From manuscript_sales_e
 );
 
 CREATE TABLE IF NOT EXISTS `auction_administrator` (
-	`auction_id` INT NOT NULL, -- ID of the auction
+	`auction_id` CHAR(5) NOT NULL, -- ID of the auction
 	`administrator_id` CHAR(6) NOT NULL, -- ID of the administrator
 	`administrator_role` INT NOT NULL,
-	PRIMARY KEY (`auction_id`, `administrator_id`, `administrator_role`)
+	PRIMARY KEY (`auction_id`, `administrator_id`)
 );
 
 CREATE TABLE IF NOT EXISTS `parisian_stock_sale` ( -- From manuscript_events_sales
