@@ -558,26 +558,26 @@ CREATE TABLE IF NOT EXISTS `consignment` ( -- From Excel spreadsheet
   `shipping_number` VARCHAR(25),				/* shipping number as given in the register */
   `marque` VARCHAR(25),							/* marque on consignment as given in the register */
   `inspection_date` DATE,						/* date recorded in the confiscation register */
-  `addressee_name` VARCHAR(250),				/* addressee's name as it appears in the register */
-  `addressee_title` VARCHAR(25),				/* addressee's title as it appears in the register */
-  `addressee` CHAR(6),							/* !FK: person_code for addressee */
   `origin_text` VARCHAR(250),					/* the origin of the consignment as recorded in the resgister */
   `origin_code` CHAR(5),						/* !FK: place_code of consingment origin */
-  `customs_signatory_text` VARCHAR(250),			/* the name of the person who collected the residual books, as given in the register, including 'per' or 'on behalf of' etc */ 
+  `customs_signatory_text` VARCHAR(250),		/* the name of the person who collected the residual books, as given in the register, including 'per' or 'on behalf of' etc */ 
   `customs_signatory` CHAR(6),					/* !FK: person_code of the person who collected the residual books */
-  `customs_signatory_signed` BIT,						/* did the collector sign the register themself? 1 = yes, 0 = no */
-  `person_whom_customs_signatory_represented` CHAR(6),		/* !FK: person_code of the person who the signatory signed on behalf of */
+  `handling_agent` CHAR(6),						/* !FK: the person_code of the addressee's agent, if they had one */
+  `other_stakeholder` CHAR(6),					/* !FK: if the signatory signed on the behalf of someone other than the addressee, their person_code */
   `collectors` TEXT,							/* String listing all the confiscations register signatories */
-  `acquit_a_caution` enum('yes','no','not specified','not known'), /* did the consignment have an acquit a caution? */
+  `acquit_a_caution` ENUM('yes','no'), 			/* did the consignment have an acquit a caution? */
   `confiscation_register_notes` TEXT,			/* notes arising from examination of the confiscation registers */
   `customs_register_notes` TEXT,				/* notes arising from examination of the customs registers */
+  `all_collectors` TEXT,						/* string listing all persons who collected books from the consignment */
+  `all_censors` TEXT,							/* string listing all censors who inspected books form the consignment */
   PRIMARY KEY (`ID`)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8;
 
-CREATE TABLE IF NOT EXISTS `consignment_owner` (
+CREATE TABLE IF NOT EXISTS `consignment_addressee` (
 	`ID` INT NOT NULL AUTO_INCREMENT,
 	`consignment` INT, -- The ID of the consignment
-	`person_code` CHAR(6), -- The ID of the owner
+	`person_code` CHAR(6), -- The ID of the owner/addressee
+	`test` VARCHAR(255), -- The name as it appears in the register
 	PRIMARY KEY (`ID`)
 );
 

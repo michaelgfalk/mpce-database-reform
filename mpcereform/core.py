@@ -4,7 +4,6 @@ import mysql.connector as mysql
 import re
 from importlib.resources import read_text, path
 from openpyxl import load_workbook
-from contextlib import suppress
 
 class LocalDB():
     """Class for managing connection to database server"""
@@ -449,10 +448,6 @@ class LocalDB():
         # Finish
         cur.close()
 
-    def import_data_spreadsheets(self):
-        """Imports major data spreadsheets from MPCE."""
-        pass
-
     def resolve_agents(self):
         """Resolves references to persons and corporate entities in the database.
         
@@ -490,9 +485,8 @@ class LocalDB():
         # Import author data
         print('Resolving authors...')
         with path('mpcereform.spreadsheets', 'author_person.xlsx') as p:
-            with suppress(UserWarning):
-                author_person = load_workbook(p, read_only = True, keep_vba = False)
-                print(f'Author-person assignments loaded from {p}')
+            author_person = load_workbook(p, read_only = True, keep_vba = False)
+            print(f'Author-person assignments loaded from {p}')
         # Get list of all authors who already have person codes
         assigned_authors = []
         for row in author_person['author_person'].iter_rows(min_row = 2, values_only = True):
@@ -571,7 +565,133 @@ class LocalDB():
             f'{cur.rowcount} profession codes assigned to "aucteurs", "redacteurs" and "traducteurs".')
         self.conn.commit()
         
-        # 
+        # Resolve clients
+        # Create a combined list of all clients
+        print('Finding client codes...')
+        cur.execute("""
+            CREATE TEMPORARY TABLE mpce.all_clients (
+                code VARCHAR(255) PRIMARY KEY,
+                name VARCHAR(255),
+                alt_name VARCHAR(255),
+                prof_codes VARCHAR(255),
+                place_codes VARCHAR(255),
+                gender VARCHAR(255),
+                notes TEXT,
+                corporate BIT(1)
+            )
+        """)
+        print('Scanning STN clients ...')
+        cur.execute("""
+            INSERT IGNORE INTO mpce.all_clients (
+                code, name, corporate, notes
+            )
+            SELECT client_code, client_name, partnership, notes
+            FROM mpce.stn_client
+        """)
+        print('Scanning `manuscripts.manuscript_dealers`...')
+        cur.execute("""
+            INSERT IGNORE INTO mpce.all_clients (
+                code, name, alt_name, prof_codes, place_codes, notes
+            )
+            SELECT
+                Client_Code, Dealer_Name, Alternative_Name, Profession_Code,
+                Place_Code, Notes
+            FROM manuscripts.manuscript_dealers
+        """)
+        print('Scanning `manuscripts.manuscript_inspectors`...')
+        cur.execute("""
+            INSERT IGNORE INTO mpce.all_clients (
+                code, name, place_codes, notes
+            )
+            SELECT
+                Client_Code, Agent_Name, Place_Code, Notes
+            FROM manuscripts.manuscript_agents_inspectors
+        """)
+        # New clients in consignments workbook
+        with path('mpcereform.spreadsheets', 'consignments.xlsx') as p:
+            print(f'Scanning {p} ...')
+            consignments = load_workbook(p, read_only=True, keep_vba=False)
+        consignment_clients  = {}
+        for row in consignments['People final'].iter_rows(min_row=2, values_only=True):
+            if type(row[3]) != str or type(row[2]) != str:
+                continue
+            codes = row[3].split(';')
+            names = row[2].split(';')
+            if len(codes) != len(names):
+                if len(codes) > len(names):
+                    codes = codes[:len(names)]
+                else:
+                    names = names[:len(codes)]
+            for code, name in zip(codes, names):
+                if code not in consignment_clients:
+                    consignment_clients[code] = name
+        cur.executemany("""
+            INSERT IGNORE INTO mpce.all_clients (
+                code, name
+            )
+            VALUES (%s, %s)
+        """, [(code, name) for code, name in consignment_clients.items()])
+        # New clients in permission simple
+        with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as p:
+            print(f'Scanning {p} ...')
+            per_simp = load_workbook(p, read_only=True, keep_vba=False)
+        cur.executemany("""
+            INSERT IGNORE INTO mpce.all_clients (
+                code, name, alt_name, gender, prof_codes, place_codes, notes
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, [(r[0], r[1], r[2], r[3], r[5], r[7], r[8]) 
+              for r in per_simp['Clients'].iter_rows(min_row=2, values_only=True)])
+        self.conn.commit()
+        cur.execute('SELECT COUNT(code) FROM mpce.all_clients')
+        print(f'{cur.fetchone()[0]} clients found across all datasets.')
+
+        # Finish
+        cur.close()
+
+    def import_data_spreadsheets(self):
+        """Imports major data spreadsheets from MPCE."""
+
+        cur = self.conn.cursor()
+
+        # Import consignments
+        with path('mpcereform.spreadsheets', 'consignments.xlsx') as p:
+            consignments = load_workbook(p, read_only=True, keep_vba=False)
+        insert_params = []
+        for row in consignments['Confiscations master'].iter_rows(min_row=2, values_only=True):
+            insert_params.append({
+                'ID': row[0],
+                'conf_reg_ms': row[1],
+                'conf_reg_fol': row[2],
+                'cust_reg_ms': row[3],
+                'cust_reg_fol': row[4],
+                '21935': row[5],
+                'date': row[6],
+                'ship_no': row[7],
+                'marque': row[8],
+                'acquit': row[9],
+                'agent': row[18]
+
+            })
+
+        cur.executemany("""
+            INSERT INTO mpce.consignment (
+                ID, confiscation_register_ms, confiscation_register_folio,
+                customs_register_ms, customs_register_folio,
+                ms_21935_folio, shipping_number, marque,
+                inspection_date, origin_text, origin_code,
+                customs_signatory_text, customs_signatory,
+                handling_agent, other_stakeholder,
+                acquit_a_cauction, confiscation_register_notes,
+                customs_register_notes, all_collectors, all_censors
+            )
+            VALUES (%(ID)s, %(conf_reg_ms)s, %(conf_reg_fol)s, %(cust_reg_ms)s, %(cust_reg_fol)s,
+                    %(21935)s, %(ship_no)s, %(marque)s, %(date)s, %(or_text)s, %(or_code)s,
+                    %(sig_text)s, %(sig)s, %(agent)s, %(stakeholder)s, %(acquit)s, %(conf_reg_notes)s,
+                    %(cust_reg_notes)s)
+        """, insert_params)
+
+        # Import permission simple
 
         # Finish
         cur.close()
@@ -582,7 +702,7 @@ class LocalDB():
 
     # Utility methods
     def _get_code_sequence(self, table, column, frame, n, cursor = None):
-        """Return a list of the next n free person_codes
+        """Return a list of the next n free codes.
         
         Arguments:
         ==========
