@@ -15,8 +15,7 @@ def main():
     db.import_stn()
     db.import_new_tables()
     db.import_data_spreadsheets()
-    db.resolve_agents()
-    
+    db.resolve_agents()  
 
 if __name__ == '__main__':
     sys.exit(main())

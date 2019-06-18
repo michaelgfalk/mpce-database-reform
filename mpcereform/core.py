@@ -7,13 +7,13 @@ from openpyxl import load_workbook
 from itertools import zip_longest
 from uuid import uuid1
 
+from mpcereform.utils import parse_date
+
 class LocalDB():
     """Class for managing connection to database server"""
 
     UNCHANGED_TABLES = {
         # Tables identical to their STN counterparts
-        'mpce.stn_client': 'manuscripts.clients',
-        'mpce.stn_client_agent': 'manuscripts.clients_people',
         'mpce.stn_client_profession': 'manuscripts.clients_professions',
         'mpce.stn_edition_call_number': 'manuscripts.books_call_numbers',
         'mpce.stn_edition_catalogue': 'manuscripts.books_stn_catalogues',
@@ -294,6 +294,21 @@ class LocalDB():
         self.conn.commit()
         print(f'{cur.rowcount} transactions ported into `mpce.stn_transaction` with new direction coding.')
 
+        # Clients (need to parse dates)
+        print(f'Importing client data, parsing dates ...')
+        cur.execute('SELECT * FROM manuscripts.clients')
+        clients = []
+        for client in cur.fetchall():
+            first = parse_date(client[9])
+            last = parse_date(client[10])
+            clients.append(client[:9] + (first,) + (last,) + client[-1:])
+        cur.executemany("""
+            INSERT INTO mpce.stn_client
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, clients)
+        print(f'{cur.rowcount} clients inserted with parsed first and last dates.')
+        self.conn.commit()
+
         # Finish
         cur.close()
 
@@ -533,31 +548,51 @@ class LocalDB():
         cur = self.conn.cursor()
         
         # Import basic agent data
+        # Lenghten all person_codes by two digits.
         print('Importing existing agent data...')
         cur.execute("""
+            SELECT
+                CONCAT('id00', RIGHT(person_code, 4)), person_name, sex, title,
+                other_names, designation, status, birth_date, death_date, notes
+            FROM manuscripts.people
+        """)
+        people = []
+        for person in cur.fetchall():
+            birth = parse_date(person[7])
+            death = parse_date(person[8])
+            people.append(person[:7] + (birth,) + (death,) + person[-1:])
+        cur.executemany("""
             INSERT INTO mpce.agent (
                 agent_code, name, sex, title, other_names,
                 designation, status, start_date, end_date,
                 notes
             )
-            SELECT person_code, person_name, sex, title, other_names,
-                designation, status, birth_date, death_date,
-                notes
-            FROM manuscripts.people
-        """)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, people)
         print(f'{cur.rowcount} agents imported from `manuscripts.people` into `mpce.agent`.')
         
+        # Get client-agent data from STN database
+        print('Importing stn client-agent relationships...')
+        cur.execute("""
+            INSERT INTO mpce.stn_client_agent
+            SELECT client_code, CONCAT('id00', RIGHT(person_code, 4))
+            FROM manuscripts.clients_people
+        """)
+        print(f'{cur.rowcount} relationships inserted into `mpce.stn_client_agent`.')
+
         # Import agent metadata
         cur.execute("""
             INSERT INTO mpce.profession
-            SELECT * FROM manuscripts.professions
+            SELECT *
+            FROM manuscripts.professions
         """)
         cur.execute("""
             INSERT INTO mpce.agent_profession
-            SELECT * FROM manuscripts.people_professions
+            SELECT CONCAT('id00', RIGHT(person_code, 4)), profession_code
+            FROM manuscripts.people_professions
         """)
         print(f'Professions and assignments imported from `manuscripts.professions` and `manuscripts.people_professions`.')
-        # The permission simple sheet contains some new clients and professions
+        # The permission simple sheet contains some new professions
         with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as p:
             print(f'Importing new profession data from {p}')
             p_simple = load_workbook(p, read_only=True, keep_vba=False)
@@ -571,6 +606,10 @@ class LocalDB():
         """, new_professions)
         print(f'{cur.rowcount} new professions imported.')
         self.conn.commit()
+
+        # Now all agent_codes (person_codes) have been imported, as have profession codes.
+
+        # RESOLVE AUTHORS:
 
         # Import author data
         print('Resolving authors...')
@@ -611,17 +650,17 @@ class LocalDB():
         """)
         unassigned_auths = cur.fetchall()
         n = len(unassigned_auths)
-        new_pcs = self._get_code_sequence('manuscripts.people','person_code','id0000', n, cur)
+        new_ag_cdes = self._get_code_sequence('mpce.agent','agent_code', n, cur)
         cur.executemany("""
             INSERT INTO mpce.agent (agent_code, name)
             VALUES (%s, %s)
-        """, seq_params=[(p_cd, name) for p_cd, (name, a_cd) in zip(new_pcs, unassigned_auths)])
+        """, seq_params=[(ag_cd, name) for ag_cd, (name, au_cd) in zip(new_ag_cdes, unassigned_auths)])
         cur.executemany("""
             INSERT INTO mpce.author_agent (author_code, agent_code)
             VALUES (%s, %s)
-        """, seq_params=[(a_cd, p_cd) for p_cd, (name, a_cd) in zip(new_pcs, unassigned_auths)])
+        """, seq_params=[(au_cd, ag_cd) for ag_cd, (name, au_cd) in zip(new_ag_cdes, unassigned_auths)])
 
-        print(f'{cur.rowcount} authors assigned new agent codes...')
+        print(f'{cur.rowcount} authors assigned new agent_codes...')
         self.conn.commit()
         # Now import authorship data 
         cur.execute("""
@@ -660,7 +699,7 @@ class LocalDB():
         print('Finding client codes...')
         cur.execute("""
             CREATE TEMPORARY TABLE mpce.all_clients (
-                code VARCHAR(255) PRIMARY KEY,
+                client_code VARCHAR(255) PRIMARY KEY,
                 name VARCHAR(255),
                 alt_name VARCHAR(255),
                 prof_codes VARCHAR(255),
@@ -673,15 +712,15 @@ class LocalDB():
         print('Scanning STN clients ...')
         cur.execute("""
             INSERT IGNORE INTO mpce.all_clients (
-                code, name, corporate, notes
+                client_code, name, gender, corporate, notes
             )
-            SELECT client_code, client_name, partnership, notes
+            SELECT client_code, client_name, gender, partnership, notes
             FROM mpce.stn_client
         """)
         print('Scanning `manuscripts.manuscript_dealers`...')
         cur.execute("""
             INSERT IGNORE INTO mpce.all_clients (
-                code, name, alt_name, prof_codes, place_codes, notes
+                client_code, name, alt_name, prof_codes, place_codes, notes
             )
             SELECT
                 Client_Code, Dealer_Name, Alternative_Name, Profession_Code,
@@ -691,7 +730,7 @@ class LocalDB():
         print('Scanning `manuscripts.manuscript_agents_inspectors`...')
         cur.execute("""
             INSERT IGNORE INTO mpce.all_clients (
-                code, name, place_codes, notes
+                client_code, name, place_codes, notes
             )
             SELECT
                 Client_Code, Agent_Name, Place_Code, Notes
@@ -709,33 +748,66 @@ class LocalDB():
             names = row[2].split(';')
             for code, name in zip(codes, names): # zip() deals with different-length sequences
                 if code not in consignment_clients:
-                    consignment_clients[code] = name
+                    consignment_clients[code] = (code, name, row[7])
         cur.executemany("""
             INSERT IGNORE INTO mpce.all_clients (
-                code, name
+                client_code, name, place_codes
             )
-            VALUES (%s, %s)
-        """, [(code, name) for code, name in consignment_clients.items()])
+            VALUES (%s, %s, %s)
+        """, [(code, name, place) for _, (code, name, place) in consignment_clients.items()])
         # New clients in permission simple
         with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as p:
             print(f'Scanning {p} ...')
             per_simp = load_workbook(p, read_only=True, keep_vba=False)
         cur.executemany("""
             INSERT IGNORE INTO mpce.all_clients (
-                code, name, alt_name, gender, prof_codes, place_codes, notes
+                client_code, name, alt_name, gender, prof_codes, place_codes, notes
             )
             VALUES (%s, %s, %s, %s, %s, %s, %s)
         """, [(r[0], r[1], r[2], r[3], r[5], r[7], r[8]) 
               for r in per_simp['Clients'].iter_rows(min_row=2, values_only=True)])
         self.conn.commit()
-        cur.execute('SELECT COUNT(code) FROM mpce.all_clients')
+        cur.execute('SELECT COUNT(client_code) FROM mpce.all_clients')
         print(f'{cur.fetchone()[0]} clients found across all datasets.')
 
-        # Update stn agent data from spreadsheet
+        # Insert data on new agents
+        cur.execute("""
+            SELECT *
+            FROM mpce.all_clients AS ac
+                LEFT JOIN mpce.stn_client_agent AS sca
+                    ON ac.client_code = sca.client_code
+            WHERE sca.client_code IS NULL
+        """)
+        new_agents = cur.fetchall()
+        num_new_codes = len(new_agents)
+        print(f'Assigning new agent codes to {num_new_codes} clients ...')
+        code_list = self._get_code_sequence(
+            'mpce.agent', 'agent_code', num_new_codes, cur)
+        # cur.executemany("""
+        #     INSERT INTO mpce.agent (
+        #         agent_code, name, sex, title, other_names,
+        #         designation, status, start_date, end_date,
+        #         notes, cerl_id, corporate_entity
+        #     )
+        #     VALUES (
+        #         %s, 
+        #     )
+        # """)
+        
+        # code VARCHAR(255) PRIMARY KEY,
+        #         name VARCHAR(255),
+        #         alt_name VARCHAR(255),
+        #         prof_codes VARCHAR(255),
+        #         place_codes VARCHAR(255),
+        #         gender VARCHAR(255),
+        #         notes TEXT,
+        #         corporate BIT(1)
+
+        
+        # Lengthen agent_codes by two digits
 
 
-        # Assign agent and entity codes
-
+        # Transform all client_codes across the database
 
 
         # Finish
@@ -748,14 +820,13 @@ class LocalDB():
         pass
 
     # Utility methods
-    def _get_code_sequence(self, table, column, frame, n, cursor = None):
+    def _get_code_sequence(self, table, column, n, cursor = None):
         """Return a list of the next n free codes.
         
         Arguments:
         ==========
             table (str): name of table to be queried
             column (str): name of column to be queried
-            frame (str): blank version of id code, e.g. 'pl0000' for a place_code
             n (int): number of new ids to be generated
             cursor (MySQLCursor): a cursor, if you don't wish to create a new one
 
@@ -764,8 +835,9 @@ class LocalDB():
             A sequence of n new codes
         """
 
-        # Regex for extracting numeric part of id
-        num_extr_rgx = re.compile(r'[1-9]\d*')
+        # Regexes
+        num_extr_rgx = re.compile(r'[1-9]\d*') # Extract numerica part of id
+        frame_rgx = re.compile(r'[a-z]+(?=0)') # To find frame
 
         # Get a cursor
         if cursor is not None:
@@ -776,6 +848,13 @@ class LocalDB():
         # Retrieve agent codes, strip 'id' and leading 0s, convert to int
         cur.execute(f'SELECT {column} FROM {table}')
         codes = cur.fetchall()
+
+        # Work out the frame:
+        alpha = frame_rgx.match(codes[0][0]).group(0)
+        n_digits = len(codes[0][0]) - len(alpha)
+        frame = ''.join([alpha] + ['0' for n in range(n_digits)])
+
+        # Extract numeric part of codes
         codes = [int(num_extr_rgx.search(id).group(0))
                  for (id,) in codes]
         
