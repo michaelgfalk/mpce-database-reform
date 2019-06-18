@@ -400,12 +400,12 @@ class LocalDB():
             for agent in agents.split(','):
                 mtch = auction_rgx.search(agent)
                 if mtch:
-                    person = mtch.group(1)
+                    administrator = mtch.group(1)
                     role = auction_roles[mtch.group(2)]
                 else:
-                    person = agent
+                    administrator = agent
                     role = None
-                auction_administrator.append((sale, person, role))
+                auction_administrator.append((sale, administrator, role))
         cur.executemany(
             """INSERT INTO mpce.auction_administrator
             VALUES (%s, %s, %s)""",
@@ -532,7 +532,7 @@ class LocalDB():
 
         cur = self.conn.cursor()
         
-        # Import basic person data
+        # Import basic agent data
         print('Importing existing agent data...')
         cur.execute("""
             INSERT INTO mpce.agent (
@@ -545,7 +545,7 @@ class LocalDB():
                 notes
             FROM manuscripts.people
         """)
-        print(f'{cur.rowcount} agents imported from `manuscripts.people` into `mpce.person`.')
+        print(f'{cur.rowcount} agents imported from `manuscripts.people` into `mpce.agent`.')
         
         # Import agent metadata
         cur.execute("""
@@ -574,17 +574,17 @@ class LocalDB():
 
         # Import author data
         print('Resolving authors...')
-        with path('mpcereform.spreadsheets', 'author_agent.xlsx') as p:
-            author_agent = load_workbook(p, read_only = True, keep_vba = False)
-            print(f'Author-person assignments loaded from {p}')
-        # Get list of all authors who already have person codes
+        with path('mpcereform.spreadsheets', 'author_person.xlsx') as p:
+            author_person = load_workbook(p, read_only = True, keep_vba = False)
+            print(f'Author-agent assignments loaded from {p}')
+        # Get list of all authors who already have agent codes
         assigned_authors = []
-        for row in author_agent['author_agent'].iter_rows(min_row=2, values_only=True):
+        for row in author_person['author_person'].iter_rows(min_row=2, values_only=True):
             # If the match is correct...
             if row[7] == 'Y':
                 # ... append (agent_code, author_code)
                 # Assumes that the workbook has the following columns in sheet 0:
-                # agent_code, client_code, person_name, author_code, author_name, osa, cosine, correct, notes
+                # agent_code, client_code, agent_name, author_code, author_name, osa, cosine, correct, notes
                 assigned_authors.append((row[0], row[3]))
         # Create temporary author_agent table
         cur.execute("""
@@ -603,17 +603,17 @@ class LocalDB():
 
         # Create new agents for all authors without a agent_code
         cur.execute("""
-            SELECT a.author_name, a.author_code
-            FROM manuscripts.manuscript_authors AS a
-            LEFT JOIN mpce.author_agent AS ap
-                ON ap.author_code = a.author_code
-            WHERE ap.agent_code IS NULL
+            SELECT ma.author_name, ma.author_code
+            FROM manuscripts.manuscript_authors AS ma
+            LEFT JOIN mpce.author_agent AS aa
+                ON aa.author_code = ma.author_code
+            WHERE aa.agent_code IS NULL
         """)
         unassigned_auths = cur.fetchall()
         n = len(unassigned_auths)
         new_pcs = self._get_code_sequence('manuscripts.people','person_code','id0000', n, cur)
         cur.executemany("""
-            INSERT INTO mpce.person (agent_code, name)
+            INSERT INTO mpce.agent (agent_code, name)
             VALUES (%s, %s)
         """, seq_params=[(p_cd, name) for p_cd, (name, a_cd) in zip(new_pcs, unassigned_auths)])
         cur.executemany("""
@@ -621,17 +621,17 @@ class LocalDB():
             VALUES (%s, %s)
         """, seq_params=[(a_cd, p_cd) for p_cd, (name, a_cd) in zip(new_pcs, unassigned_auths)])
 
-        print(f'{cur.rowcount} authors assigned new person codes...')
+        print(f'{cur.rowcount} authors assigned new agent codes...')
         self.conn.commit()
         # Now import authorship data 
         cur.execute("""
             INSERT INTO mpce.edition_author (
                 edition_code, author, author_type, certain
             )
-            SELECT ba.book_code, ap.agent_code, at.id, ba.certain
+            SELECT ba.book_code, aa.agent_code, at.id, ba.certain
                 FROM manuscripts.manuscript_books_authors AS ba
                 LEFT JOIN mpce.author_agent AS aa
-                    ON ba.author_code = ap.author_code
+                    ON ba.author_code = aa.author_code
                 LEFT JOIN mpce.author_type AS at
                     ON ba.author_type LIKE at.type
         """)
@@ -734,7 +734,7 @@ class LocalDB():
         # Update stn agent data from spreadsheet
 
 
-        # Assign person and entity codes
+        # Assign agent and entity codes
 
 
 
@@ -773,7 +773,7 @@ class LocalDB():
         else:
             cur = self.conn.cursor()
         
-        # Retrieve person codes, strip 'id' and leading 0s, convert to int
+        # Retrieve agent codes, strip 'id' and leading 0s, convert to int
         cur.execute(f'SELECT {column} FROM {table}')
         codes = cur.fetchall()
         codes = [int(num_extr_rgx.search(id).group(0))
