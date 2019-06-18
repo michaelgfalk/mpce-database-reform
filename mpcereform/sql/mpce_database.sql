@@ -68,8 +68,8 @@ CREATE TABLE IF NOT EXISTS work ( -- From manuscript_books [super_books in origi
 	*/
 	`work_code` CHAR(12) NOT NULL,
 	`work_title` VARCHAR(750) NOT NULL,
-	`parisian_keyword` VARCHAR(2000) DEFAULT NULL,
-	`illegality_notes` VARCHAR(2000) DEFAULT NULL,
+	`parisian_keyword` VARCHAR(2000),
+	`illegality_notes` VARCHAR(2000),
 	`categorisation_fuzzy_value` INT DEFAULT 0,
 	`categorisation_notes` TEXT,
 	PRIMARY KEY (`work_code`)
@@ -184,7 +184,7 @@ information about how a particular client was related to the STN.
 
 As the project expanded, numerous seperate tables of persons were created. In
 addition, new agents were assigned new client_codes as a matter of course, rather
-than person_codes. No decision was made about how to treat organisations that
+than agent_codes. No decision was made about how to treat organisations that
 were not clients of the STN.
 
 In this schema, a thorough revamp is proposed. The 'clients' table will be frozen
@@ -196,40 +196,31 @@ about partnerships, government agencies etc.
 
 */
 
-CREATE TABLE IF NOT EXISTS person ( -- From people
-	`person_code` CHAR(6) NOT NULL,
-	`name` VARCHAR(155) DEFAULT NULL,
-	`sex` CHAR(1) DEFAULT NULL,
-	`title` VARCHAR(50) DEFAULT NULL,
-	`other_names` VARCHAR(1000) DEFAULT NULL,
-	`designation` VARCHAR(50) DEFAULT NULL,
-	`status` VARCHAR(50) DEFAULT NULL,
-	`birth_date` DATE DEFAULT NULL,
-	`death_date` DATE DEFAULT NULL,
-	`notes` VARCHAR(4000) DEFAULT NULL,
-	`cerl_id` CHAR(11),
-	PRIMARY KEY (`person_code`)
-);
-
-CREATE TABLE IF NOT EXISTS corporate_entity ( -- New table
-	`entity_code` INT(6) NOT NULL AUTO_INCREMENT,
-	`entity_name` VARCHAR(155),
-	`start_date` DATE,
-	`end_date` DATE,
-	`cerl_id` CHAR(11),
+CREATE TABLE IF NOT EXISTS `agent` ( -- From `people`
+	`agent_code` CHAR(6) NOT NULL,	-- Former 'agent_code'
+	`name` VARCHAR(255),
+	`sex` CHAR(1),					-- Gender of person, or of members if known
+	`title` VARCHAR(255),
+	`other_names` VARCHAR(1023),
+	`designation` VARCHAR(255),
+	`status` VARCHAR(255),
+	`start_date` DATE,				-- Birth date, earliest fl. date or foundation date as appropriate
+	`end_date` DATE,				-- Death date, latest fl. date or winding-up date as appropriate
 	`notes` TEXT,
-	PRIMARY KEY (`entity_code`)
+	`cerl_id` CHAR(11),
+	`corporate_entity` BIT(1),		-- Is this agent a corporate entity? y/n/NULL
+	PRIMARY KEY (`agent_code`)
 );
 
-CREATE TABLE IF NOT EXISTS is_member_of ( -- New table
-	`person_code` CHAR(6) NOT NULL,
-	`entity_code` INT NOT NULL,
-	PRIMARY KEY (`person_code`, `entity_code`)
+CREATE TABLE IF NOT EXISTS `is_member_of` ( -- New table
+	`member` CHAR(6) NOT NULL,				-- agent_code of the member
+	`corporate_entity` CHAR(6) NOT NULL,	-- agent_code of the agent they are a member of
+	PRIMARY KEY (`member`, `corporate_entity`)
 );
 
 -- Other types of person, and additional metadata
 
-CREATE TABLE IF NOT EXISTS stn_client ( -- From clients
+CREATE TABLE IF NOT EXISTS `stn_client` ( -- From clients
 	`client_code` CHAR(6) NOT NULL,
 	`client_name` VARCHAR(100),
 	`has_correspondence` bit(1),
@@ -245,25 +236,19 @@ CREATE TABLE IF NOT EXISTS stn_client ( -- From clients
 	PRIMARY KEY (`client_code`)
 );
 
-CREATE TABLE IF NOT EXISTS stn_client_person ( -- From clients_people
+CREATE TABLE IF NOT EXISTS `stn_client_agent` ( -- From clients_people
 	`client_code` CHAR(6) NOT NULL,
-	`person_code` CHAR(6) NOT NULL,
-	PRIMARY KEY (`client_code`, `person_code`)
+	`agent_code` CHAR(6) NOT NULL,
+	PRIMARY KEY (`client_code`, `agent_code`)
 );
 
-CREATE TABLE IF NOT EXISTS stn_client_profession ( -- From clients_professions
+CREATE TABLE IF NOT EXISTS `stn_client_profession` ( -- From clients_professions
 	`client_code` CHAR(6) NOT NULL,
 	`profession_code` CHAR(6) NOT NULL,
 	PRIMARY KEY(`client_code`, `profession_code`)
 );
 
-CREATE TABLE IF NOT EXISTS stn_client_corporate_entity( -- New table
-	`client_code` CHAR(6) NOT NULL,
-	`entity_code` CHAR(6) NOT NULL,
-	PRIMARY KEY (`client_code`,`entity_code`)
-);
-
-CREATE TABLE IF NOT EXISTS profession ( -- From professions
+CREATE TABLE IF NOT EXISTS `profession` ( -- From professions
 	`profession_code` CHAR(5) NOT NULL,
 	`profession_type` VARCHAR(50),
 	`translated_profession` VARCHAR(100),
@@ -272,19 +257,19 @@ CREATE TABLE IF NOT EXISTS profession ( -- From professions
 	PRIMARY KEY(`profession_code`)
 );
 
-CREATE TABLE IF NOT EXISTS person_profession ( -- From people_professions
-	`person_code` CHAR(6) NOT NULL,
+CREATE TABLE IF NOT EXISTS `agent_profession` ( -- From people_professions
+	`agent_code` CHAR(6) NOT NULL,
 	`profession_code` CHAR(5) NOT NULL,
-	PRIMARY KEY (`person_code`, `profession_code`)
+	PRIMARY KEY (`agent_code`, `profession_code`)
 );
 
-CREATE TABLE IF NOT EXISTS corporate_entity_profession ( -- New table
+CREATE TABLE IF NOT EXISTS `corporate_entity_profession` ( -- New table
 	`entity_code` CHAR(6) NOT NULL,
 	`profession_code` CHAR(5) NOT NULL,
 	PRIMARY KEY (`entity_code`, `profession_code`)
 );
 
-CREATE TABLE IF NOT EXISTS edition_author ( -- From manuscript_books_authors
+CREATE TABLE IF NOT EXISTS `edition_author` ( -- From manuscript_books_authors
 	`edition_code` CHAR(12) NOT NULL,
 	`author` CHAR(6) NOT NULL, -- Person code of the author
 	`author_type` int NOT NULL,
@@ -340,9 +325,9 @@ CREATE TABLE IF NOT EXISTS place ( -- From manuscript_places
 	PRIMARY KEY (`place_code`)
 );
 
-CREATE TABLE IF NOT EXISTS person_address ( -- From clients_addresses
+CREATE TABLE IF NOT EXISTS agent_address ( -- From clients_addresses
 	`id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	`person_code` CHAR(6) NOT NULL,
+	`agent_code` CHAR(6) NOT NULL,
 	`place_code` CHAR(5) NOT NULL,
 	`address` VARCHAR(50),
 	`from_date` DATE,
@@ -560,9 +545,9 @@ CREATE TABLE IF NOT EXISTS `consignment` ( -- From Excel spreadsheet
   `inspection_date` DATE,						/* date recorded in the confiscation register */
   `origin_text` VARCHAR(255),					/* the origin of the consignment as recorded in the resgister */
   `origin_code` CHAR(5),						/* !FK: place_code of consingment origin */
-  `other_stakeholder` CHAR(6),					/* !FK: person_code of the other stakeholder, if there is one */
+  `other_stakeholder` CHAR(6),					/* !FK: agent_code of the other stakeholder, if there is one */
   `returned_to_name` VARCHAR(255),				/* Name of the person the consignment was returned to, as it appears in the register */
-  `returned_to_person` CHAR(6),					/* !FK: The person to whom the consignment was returned */
+  `returned_to_agent` CHAR(6),					/* !FK: The person to whom the consignment was returned */
   `returned_to_town` VARCHAR(255),				/* Name of the place the consignment went back to */
   `returned_to_place` CHAR(5),					/* !FK: The place the consignment went back to */
   `acquit_a_caution` ENUM('yes','no'), 			/* did the consignment have an acquit a caution? */
@@ -575,7 +560,7 @@ CREATE TABLE IF NOT EXISTS `consignment` ( -- From Excel spreadsheet
 CREATE TABLE IF NOT EXISTS `consignment_addressee` ( -- New table: owners/addressees of the consignment
 	`ID` INT NOT NULL AUTO_INCREMENT,
 	`consignment` INT, -- The ID of the consignment
-	`person_code` CHAR(6), -- The ID of the owner/addressee
+	`agent_code` CHAR(6), -- The ID of the owner/addressee
 	`text` VARCHAR(255), -- The name as it appears in the register
 	PRIMARY KEY (`ID`)
 );
@@ -583,7 +568,7 @@ CREATE TABLE IF NOT EXISTS `consignment_addressee` ( -- New table: owners/addres
 CREATE TABLE IF NOT EXISTS `consignment_signatory` ( -- New table: persons who sign the customs register
 	`ID` INT NOT NULL AUTO_INCREMENT,
 	`consignment` INT, -- The ID of the consignment
-	`person_code` CHAR(6), -- The ID of the customs register signatory
+	`agent_code` CHAR(6), -- The ID of the customs register signatory
 	`text` VARCHAR(255), -- The name as it appears in the register
 	PRIMARY KEY (`ID`)
 );
@@ -591,7 +576,7 @@ CREATE TABLE IF NOT EXISTS `consignment_signatory` ( -- New table: persons who s
 CREATE TABLE IF NOT EXISTS `consignment_agent` ( -- New table: handling agents of the consignment
 	`ID` INT NOT NULL AUTO_INCREMENT,
 	`consignment` INT, -- The ID of the consignment
-	`person_code` CHAR(6), -- The ID of the handling agent
+	`agent_code` CHAR(6), -- The ID of the handling agent
 	`text` VARCHAR(255), -- The name as it appears in the register
 	PRIMARY KEY (`ID`)
 );
@@ -610,19 +595,19 @@ CREATE TABLE IF NOT EXISTS `confiscation` ( -- No data as yet
   `other_judgment` VARCHAR(255),				/* If 'une autre' is selected */
   `date` DATE,									/* the date the confiscation occurred (i.e. date that the decision was recorded) */
   `censor_name` VARCHAR(255),					/* the name of the censor as it appears in the register */
-  `censor` CHAR(6),								/* !FK: person_code of the censor */
+  `censor` CHAR(6),								/* !FK: agent_code of the censor */
   `signatory_text` VARCHAR(255),				/* if the books were 'rendered' to someone, their name as it appears in the register */
-  `signatory` CHAR(6),							/* !FK: person_code of signatory */
-  `signatory_signed_on_behalf_of` CHAR(6),		/* !FK: person_code of whomever the signatory represented */
+  `signatory` CHAR(6),							/* !FK: agent_code of signatory */
+  `signatory_signed_on_behalf_of` CHAR(6),		/* !FK: agent_code of whomever the signatory represented */
   PRIMARY KEY (`ID`)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stamping` ( -- From manuscript_events
 	`ID` INT NOT NULL AUTO_INCREMENT, -- PK [ID]
 	`stamped_edition` CHAR(12) NOT NULL, -- Which edition was stamped? [ID_EditionName] (edition_code)
-	`permitted_dealer` CHAR(6) NOT NULL, -- Who received the permission to sell? [ID_DealerName] (person_code)
-	`attending_inspector` CHAR(6), -- Who was the inspector responsible? [ID_AgentA] (person_code)
-	`attending_adjoint` CHAR(6), -- Who was the attending adjoint? [ID_AgentB] (person_code)
+	`permitted_dealer` CHAR(6) NOT NULL, -- Who received the permission to sell? [ID_DealerName] (agent_code)
+	`attending_inspector` CHAR(6), -- Who was the inspector responsible? [ID_AgentA] (agent_code)
+	`attending_adjoint` CHAR(6), -- Who was the attending adjoint? [ID_AgentB] (agent_code)
 	`stamped_at_place` CHAR(5), -- Where was the edition stamped? [ID_PlaceName] (place_code)
 	`stamped_at_location_type` VARCHAR(50), -- [EventLocation]
 	`copies_stamped` INT, -- [EventCopies]
@@ -708,7 +693,7 @@ CREATE TABLE IF NOT EXISTS `permission_simple_grant` ( -- from Excel spreadsheet
 	`edition_code` CHAR(12), -- !FK: edition.edition_code
 	`stated_publisher` VARCHAR(255),
 	`stated_publisher_profession` VARCHAR(255),
-	`publisher_person_code` CHAR(6), -- !FK: person.person_code
+	`publisher_agent_code` CHAR(6), -- !FK: person.agent_code
 	`publisher_entity_code` INT, -- !FK: corporate_entity.entity_code
 	`stated_place_of_publication` VARCHAR(255),
 	`actual_place_of_publication` CHAR(5), -- !FK: place.place_code
@@ -731,7 +716,7 @@ how much.
 CREATE TABLE IF NOT EXISTS `parisian_stock_auction` ( -- From manuscript_sales_events
 	`auction_id` CHAR(5), -- PK
 	`ms_number` INT, -- The MS number where the auction is recorded
-	`previous_owner` CHAR(6), -- The person whose books are being sold (person_code)
+	`previous_owner` CHAR(6), -- The person whose books are being sold (agent_code)
 	`auction_reason` INT,
 	`place` CHAR(5), -- place auction took place (always pl306)
 	PRIMARY KEY (`auction_id`)
@@ -747,7 +732,7 @@ CREATE TABLE IF NOT EXISTS `auction_administrator` (
 CREATE TABLE IF NOT EXISTS `parisian_stock_sale` ( -- From manuscript_events_sales
 	`ID` INT NOT NULL AUTO_INCREMENT,
 	`auction_id` CHAR(5) NOT NULL, -- At which auction did this take place? [ID_SaleAgent]
-	`purchaser` CHAR(6), -- person_code, [ID_DealerName]
+	`purchaser` CHAR(6), -- agent_code, [ID_DealerName]
 	`purchased_edition` CHAR(12), -- edition_code [ID_EditionName]
 	`sale_type` INT,
 	`units_sold` VARCHAR(50),

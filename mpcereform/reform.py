@@ -9,13 +9,13 @@ def main():
     db = LocalDB()
     
     # Run import methods
-    # db.import_works()
-    # db.import_editions()
-    # db.import_places()
-    # db.import_stn()
-    # db.import_new_tables()
+    db.import_works()
+    db.import_editions()
+    db.import_places()
+    db.import_stn()
+    db.import_new_tables()
     db.import_data_spreadsheets()
-    # db.resolve_agents()
+    db.resolve_agents()
     
 
 if __name__ == '__main__':

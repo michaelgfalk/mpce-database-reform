@@ -13,7 +13,7 @@ class LocalDB():
     UNCHANGED_TABLES = {
         # Tables identical to their STN counterparts
         'mpce.stn_client': 'manuscripts.clients',
-        'mpce.stn_client_person': 'manuscripts.clients_people',
+        'mpce.stn_client_agent': 'manuscripts.clients_people',
         'mpce.stn_client_profession': 'manuscripts.clients_professions',
         'mpce.stn_edition_call_number': 'manuscripts.books_call_numbers',
         'mpce.stn_edition_catalogue': 'manuscripts.books_stn_catalogues',
@@ -480,7 +480,7 @@ class LocalDB():
                 'or_text': row[33],
                 'or_code': row[34],
                 'return_name': row[36],
-                'return_person': row[38],
+                'return_agent': row[38],
                 'return_town': row[40],
                 'return_place': row[41],
                 'notes': row[42]
@@ -493,7 +493,7 @@ class LocalDB():
                 ms_21935_folio, shipping_number, marque,
                 inspection_date, origin_text, origin_code,
                 other_stakeholder, acquit_a_caution, returned_to_name,
-                returned_to_person, returned_to_town,
+                returned_to_agent, returned_to_town,
                 returned_to_place, notes
             )
             VALUES (
@@ -502,14 +502,14 @@ class LocalDB():
                 %(21935)s, %(ship_no)s, %(marque)s,
                 %(date)s, %(or_text)s, %(or_code)s,
                 %(stakeholder)s, %(acquit)s, %(return_name)s,
-                %(return_person)s, %(return_town)s,
+                %(return_agent)s, %(return_town)s,
                 %(return_place)s, %(notes)s
             )
         """, insert_params)
         print(f'{cur.rowcount} consignments imported into `mpce.consignment`.')
         self.conn.commit()
 
-        # Import concerned persons for each consignment
+        # Import concerned agents for each consignment
         self._import_spreadsheet_agents(
             'mpce.consignment_addressee', consignments['Confiscations master'], cur, 10, 12)
         self._import_spreadsheet_agents(
@@ -519,24 +519,25 @@ class LocalDB():
 
         # Import permission simple
 
+
         # Finish
         cur.close()
 
     def resolve_agents(self):
         """Resolves references to persons and corporate entities in the database.
         
-        This method reforms all the person data in the database,
+        This method reforms all the agent data in the database,
         based on the information in the manuscripts database, and 
         in the provided spreadsheets."""
 
         cur = self.conn.cursor()
         
         # Import basic person data
-        print('Importing existing person data...')
+        print('Importing existing agent data...')
         cur.execute("""
-            INSERT INTO mpce.person (
-                person_code, name, sex, title, other_names,
-                designation, status, birth_date, death_date,
+            INSERT INTO mpce.agent (
+                agent_code, name, sex, title, other_names,
+                designation, status, start_date, end_date,
                 notes
             )
             SELECT person_code, person_name, sex, title, other_names,
@@ -544,7 +545,7 @@ class LocalDB():
                 notes
             FROM manuscripts.people
         """)
-        print(f'{cur.rowcount} persons imported from `manuscripts.people` into `mpce.person`.')
+        print(f'{cur.rowcount} agents imported from `manuscripts.people` into `mpce.person`.')
         
         # Import agent metadata
         cur.execute("""
@@ -552,56 +553,71 @@ class LocalDB():
             SELECT * FROM manuscripts.professions
         """)
         cur.execute("""
-            INSERT INTO mpce.person_profession
+            INSERT INTO mpce.agent_profession
             SELECT * FROM manuscripts.people_professions
         """)
+        print(f'Professions and assignments imported from `manuscripts.professions` and `manuscripts.people_professions`.')
+        # The permission simple sheet contains some new clients and professions
+        with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as p:
+            print(f'Importing new profession data from {p}')
+            p_simple = load_workbook(p, read_only=True, keep_vba=False)
+        new_professions = [row for row in p_simple['New Professions'].iter_rows(
+            min_row=2, values_only=True) if row[0] is not None]
+        cur.executemany("""
+            INSERT IGNORE INTO mpce.profession (
+                profession_type, profession_code, profession_group, economic_sector
+            )
+            VALUES (%s, %s, %s, %s)
+        """, new_professions)
+        print(f'{cur.rowcount} new professions imported.')
+        self.conn.commit()
 
         # Import author data
         print('Resolving authors...')
-        with path('mpcereform.spreadsheets', 'author_person.xlsx') as p:
-            author_person = load_workbook(p, read_only = True, keep_vba = False)
+        with path('mpcereform.spreadsheets', 'author_agent.xlsx') as p:
+            author_agent = load_workbook(p, read_only = True, keep_vba = False)
             print(f'Author-person assignments loaded from {p}')
         # Get list of all authors who already have person codes
         assigned_authors = []
-        for row in author_person['author_person'].iter_rows(min_row = 2, values_only = True):
+        for row in author_agent['author_agent'].iter_rows(min_row=2, values_only=True):
             # If the match is correct...
             if row[7] == 'Y':
-                # ... append (person_code, author_code)
+                # ... append (agent_code, author_code)
                 # Assumes that the workbook has the following columns in sheet 0:
-                # person_code, client_code, person_name, author_code, author_name, osa, cosine, correct, notes
+                # agent_code, client_code, person_name, author_code, author_name, osa, cosine, correct, notes
                 assigned_authors.append((row[0], row[3]))
-        # Create temporary author_person table
+        # Create temporary author_agent table
         cur.execute("""
-            CREATE TEMPORARY TABLE mpce.author_person (
-                person_code VARCHAR(255),
+            CREATE TEMPORARY TABLE mpce.author_agent (
+                agent_code VARCHAR(255),
                 author_code VARCHAR(255),
-                PRIMARY KEY(author_code, person_code)
+                PRIMARY KEY(author_code, agent_code)
             )
         """)
         cur.executemany("""
-            INSERT INTO mpce.author_person
+            INSERT INTO mpce.author_agent
             VALUES (%s, %s)
         """, seq_params = assigned_authors)
         self.conn.commit()
-        print(f'{cur.rowcount} authors with person_codes found in spreadsheet.')
+        print(f'{cur.rowcount} authors with agent_codes found in spreadsheet.')
 
-        # Create new persons for all authors without a person_code
+        # Create new agents for all authors without a agent_code
         cur.execute("""
             SELECT a.author_name, a.author_code
             FROM manuscripts.manuscript_authors AS a
-            LEFT JOIN mpce.author_person AS ap
+            LEFT JOIN mpce.author_agent AS ap
                 ON ap.author_code = a.author_code
-            WHERE ap.person_code IS NULL
+            WHERE ap.agent_code IS NULL
         """)
         unassigned_auths = cur.fetchall()
         n = len(unassigned_auths)
         new_pcs = self._get_code_sequence('manuscripts.people','person_code','id0000', n, cur)
         cur.executemany("""
-            INSERT INTO mpce.person (person_code, name)
+            INSERT INTO mpce.person (agent_code, name)
             VALUES (%s, %s)
         """, seq_params=[(p_cd, name) for p_cd, (name, a_cd) in zip(new_pcs, unassigned_auths)])
         cur.executemany("""
-            INSERT INTO mpce.author_person (author_code, person_code)
+            INSERT INTO mpce.author_agent (author_code, agent_code)
             VALUES (%s, %s)
         """, seq_params=[(a_cd, p_cd) for p_cd, (name, a_cd) in zip(new_pcs, unassigned_auths)])
 
@@ -612,19 +628,19 @@ class LocalDB():
             INSERT INTO mpce.edition_author (
                 edition_code, author, author_type, certain
             )
-            SELECT ba.book_code, ap.person_code, at.id, ba.certain
+            SELECT ba.book_code, ap.agent_code, at.id, ba.certain
                 FROM manuscripts.manuscript_books_authors AS ba
-                LEFT JOIN mpce.author_person AS ap
+                LEFT JOIN mpce.author_agent AS aa
                     ON ba.author_code = ap.author_code
                 LEFT JOIN mpce.author_type AS at
                     ON ba.author_type LIKE at.type
         """)
-        print(f'All authors resolved into persons. {cur.rowcount} authorship attributions imported into `mpce.edition_author`.')
+        print(f'All authors resolved into agents. {cur.rowcount} authorship attributions imported into `mpce.edition_author`.')
         self.conn.commit()
 
         # Apply new profession code to all authors
         cur.execute("""
-            INSERT IGNORE INTO mpce.person_profession
+            INSERT IGNORE INTO mpce.agent_profession
             SELECT
                 ea.author,
                 CASE WHEN ea.author_type = 1 THEN 'pf014'
@@ -672,7 +688,7 @@ class LocalDB():
                 Place_Code, Notes
             FROM manuscripts.manuscript_dealers
         """)
-        print('Scanning `manuscripts.manuscript_inspectors`...')
+        print('Scanning `manuscripts.manuscript_agents_inspectors`...')
         cur.execute("""
             INSERT IGNORE INTO mpce.all_clients (
                 code, name, place_codes, notes
@@ -786,7 +802,7 @@ class LocalDB():
             for name, code in zip(names, codes):
                 agents.append((id, code.strip(), name.strip()))
         cursor.executemany((
-            f'INSERT INTO {table} (consignment, person_code, text) '
+            f'INSERT INTO {table} (consignment, agent_code, text) '
             'VALUES (%s, %s, %s)'
         ), agents)
         print(f'{cursor.rowcount} agency relations inserted into `{table}`.')
