@@ -4,6 +4,8 @@ import mysql.connector as mysql
 import re
 from importlib.resources import read_text, path
 from openpyxl import load_workbook
+from itertools import zip_longest
+from uuid import uuid1
 
 class LocalDB():
     """Class for managing connection to database server"""
@@ -448,6 +450,78 @@ class LocalDB():
         # Finish
         cur.close()
 
+    def import_data_spreadsheets(self):
+        """Imports major data spreadsheets from MPCE.
+        
+        NB: This function does not fully import the consignments data. The confiscation
+        register signatories and the censors are left to self.resolve_agents()."""
+
+        cur = self.conn.cursor()
+
+        # Import consignments
+        with path('mpcereform.spreadsheets', 'consignments.xlsx') as p:
+            print(f'Importing confiscations data from {p} ...')
+            consignments = load_workbook(p, read_only=True, keep_vba=False)
+        insert_params = []
+        for row in consignments['Confiscations master'].iter_rows(min_row=2, values_only=True):
+            insert_params.append({
+                'ID': row[0],
+                'UUID': str(uuid1()),
+                'conf_reg_ms': row[1],
+                'conf_reg_fol': row[2],
+                'cust_reg_ms': row[3],
+                'cust_reg_fol': row[4],
+                '21935': row[5],
+                'date': row[6],
+                'ship_no': row[7],
+                'marque': row[8],
+                'acquit': row[9],
+                'stakeholder': row[32],
+                'or_text': row[33],
+                'or_code': row[34],
+                'return_name': row[36],
+                'return_person': row[38],
+                'return_town': row[40],
+                'return_place': row[41],
+                'notes': row[42]
+            })
+
+        cur.executemany("""
+            INSERT INTO mpce.consignment (
+                ID, UUID, confiscation_register_ms, confiscation_register_folio,
+                customs_register_ms, customs_register_folio,
+                ms_21935_folio, shipping_number, marque,
+                inspection_date, origin_text, origin_code,
+                other_stakeholder, acquit_a_caution, returned_to_name,
+                returned_to_person, returned_to_town,
+                returned_to_place, notes
+            )
+            VALUES (
+                %(ID)s, %(UUID)s, %(conf_reg_ms)s, %(conf_reg_fol)s,
+                %(cust_reg_ms)s, %(cust_reg_fol)s,
+                %(21935)s, %(ship_no)s, %(marque)s,
+                %(date)s, %(or_text)s, %(or_code)s,
+                %(stakeholder)s, %(acquit)s, %(return_name)s,
+                %(return_person)s, %(return_town)s,
+                %(return_place)s, %(notes)s
+            )
+        """, insert_params)
+        print(f'{cur.rowcount} consignments imported into `mpce.consignment`.')
+        self.conn.commit()
+
+        # Import concerned persons for each consignment
+        self._import_spreadsheet_agents(
+            'mpce.consignment_addressee', consignments['Confiscations master'], cur, 10, 12)
+        self._import_spreadsheet_agents(
+            'mpce.consignment_signatory', consignments['Confiscations master'], cur, 27, 29)
+        self._import_spreadsheet_agents(
+            'mpce.consignment_agent', consignments['Confiscations master'], cur, 17, 18)
+
+        # Import permission simple
+
+        # Finish
+        cur.close()
+
     def resolve_agents(self):
         """Resolves references to persons and corporate entities in the database.
         
@@ -617,12 +691,7 @@ class LocalDB():
                 continue
             codes = row[3].split(';')
             names = row[2].split(';')
-            if len(codes) != len(names):
-                if len(codes) > len(names):
-                    codes = codes[:len(names)]
-                else:
-                    names = names[:len(codes)]
-            for code, name in zip(codes, names):
+            for code, name in zip(codes, names): # zip() deals with different-length sequences
                 if code not in consignment_clients:
                     consignment_clients[code] = name
         cur.executemany("""
@@ -646,55 +715,17 @@ class LocalDB():
         cur.execute('SELECT COUNT(code) FROM mpce.all_clients')
         print(f'{cur.fetchone()[0]} clients found across all datasets.')
 
-        # Finish
-        cur.close()
+        # Update stn agent data from spreadsheet
 
-    def import_data_spreadsheets(self):
-        """Imports major data spreadsheets from MPCE."""
 
-        cur = self.conn.cursor()
+        # Assign person and entity codes
 
-        # Import consignments
-        with path('mpcereform.spreadsheets', 'consignments.xlsx') as p:
-            consignments = load_workbook(p, read_only=True, keep_vba=False)
-        insert_params = []
-        for row in consignments['Confiscations master'].iter_rows(min_row=2, values_only=True):
-            insert_params.append({
-                'ID': row[0],
-                'conf_reg_ms': row[1],
-                'conf_reg_fol': row[2],
-                'cust_reg_ms': row[3],
-                'cust_reg_fol': row[4],
-                '21935': row[5],
-                'date': row[6],
-                'ship_no': row[7],
-                'marque': row[8],
-                'acquit': row[9],
-                'agent': row[18]
 
-            })
-
-        cur.executemany("""
-            INSERT INTO mpce.consignment (
-                ID, confiscation_register_ms, confiscation_register_folio,
-                customs_register_ms, customs_register_folio,
-                ms_21935_folio, shipping_number, marque,
-                inspection_date, origin_text, origin_code,
-                customs_signatory_text, customs_signatory,
-                handling_agent, other_stakeholder,
-                acquit_a_cauction, confiscation_register_notes,
-                customs_register_notes, all_collectors, all_censors
-            )
-            VALUES (%(ID)s, %(conf_reg_ms)s, %(conf_reg_fol)s, %(cust_reg_ms)s, %(cust_reg_fol)s,
-                    %(21935)s, %(ship_no)s, %(marque)s, %(date)s, %(or_text)s, %(or_code)s,
-                    %(sig_text)s, %(sig)s, %(agent)s, %(stakeholder)s, %(acquit)s, %(conf_reg_notes)s,
-                    %(cust_reg_notes)s)
-        """, insert_params)
-
-        # Import permission simple
 
         # Finish
         cur.close()
+
+
 
     def build_indexes(self):
         """Builds key indexes for common queries."""
@@ -741,7 +772,22 @@ class LocalDB():
         # Return list of codes
         return [frame[:-len(str(id))] + str(id) for id in range(next_id, next_id + n)]
 
-
-        
-
-    
+    def _import_spreadsheet_agents(self, table, worksheet, cursor, text_col, code_col, id_col=0):
+        """Custom method for consignments workbook."""
+        agents = []
+        for row in worksheet.iter_rows(min_row=2, values_only=True):
+            id = row[0]
+            names, codes = row[text_col], row[code_col]
+            if type(names) != str or type(codes) != str:
+                continue
+            else:
+                names = names.split(';')
+                codes = codes.split(';')
+            for name, code in zip(names, codes):
+                agents.append((id, code.strip(), name.strip()))
+        cursor.executemany((
+            f'INSERT INTO {table} (consignment, person_code, text) '
+            'VALUES (%s, %s, %s)'
+        ), agents)
+        print(f'{cursor.rowcount} agency relations inserted into `{table}`.')
+        self.conn.commit()

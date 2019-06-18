@@ -549,35 +549,50 @@ These tables record data from six main sources:
 
 CREATE TABLE IF NOT EXISTS `consignment` ( -- From Excel spreadsheet
   `ID` INT(10) NOT NULL AUTO_INCREMENT,     	/* !PK: numeric ID (i.e. entry order) */
-  `UUID` VARCHAR(60),							/* universal unique identifier */
+  `UUID` VARCHAR(255),							/* universal unique identifier */
   `confiscation_register_ms` INT(5),			/* MS number, either 21933 or 21934 */
-  `confiscation_register_folio` VARCHAR(25),	/* folio reference in confiscation register */
-  `customs_register_ms` INT(5),					/* MS number in the range 21914-26 */
-  `customs_register_folio` VARCHAR(25),			/* folio reference in customs register */
-  `ms_21935_folio` VARCHAR(25),					/* folio reference in MS21935, the supplementary confiscations register */
-  `shipping_number` VARCHAR(25),				/* shipping number as given in the register */
-  `marque` VARCHAR(25),							/* marque on consignment as given in the register */
+  `confiscation_register_folio` VARCHAR(255),	/* folio reference in confiscation register */
+  `customs_register_ms` INT(255),				/* MS number in the range 21914-26 */
+  `customs_register_folio` VARCHAR(255),		/* folio reference in customs register */
+  `ms_21935_folio` VARCHAR(255),				/* folio reference in MS21935, the supplementary confiscations register */
+  `shipping_number` VARCHAR(255),				/* shipping number as given in the register */
+  `marque` VARCHAR(255),						/* marque on consignment as given in the register */
   `inspection_date` DATE,						/* date recorded in the confiscation register */
-  `origin_text` VARCHAR(250),					/* the origin of the consignment as recorded in the resgister */
+  `origin_text` VARCHAR(255),					/* the origin of the consignment as recorded in the resgister */
   `origin_code` CHAR(5),						/* !FK: place_code of consingment origin */
-  `customs_signatory_text` VARCHAR(250),		/* the name of the person who collected the residual books, as given in the register, including 'per' or 'on behalf of' etc */ 
-  `customs_signatory` CHAR(6),					/* !FK: person_code of the person who collected the residual books */
-  `handling_agent` CHAR(6),						/* !FK: the person_code of the addressee's agent, if they had one */
-  `other_stakeholder` CHAR(6),					/* !FK: if the signatory signed on the behalf of someone other than the addressee, their person_code */
-  `collectors` TEXT,							/* String listing all the confiscations register signatories */
+  `other_stakeholder` CHAR(6),					/* !FK: person_code of the other stakeholder, if there is one */
+  `returned_to_name` VARCHAR(255),				/* Name of the person the consignment was returned to, as it appears in the register */
+  `returned_to_person` CHAR(6),					/* !FK: The person to whom the consignment was returned */
+  `returned_to_town` VARCHAR(255),				/* Name of the place the consignment went back to */
+  `returned_to_place` CHAR(5),					/* !FK: The place the consignment went back to */
   `acquit_a_caution` ENUM('yes','no'), 			/* did the consignment have an acquit a caution? */
-  `confiscation_register_notes` TEXT,			/* notes arising from examination of the confiscation registers */
-  `customs_register_notes` TEXT,				/* notes arising from examination of the customs registers */
+  `notes` TEXT,									/* Research notes on the event */
   `all_collectors` TEXT,						/* string listing all persons who collected books from the consignment */
   `all_censors` TEXT,							/* string listing all censors who inspected books form the consignment */
   PRIMARY KEY (`ID`)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8;
 
-CREATE TABLE IF NOT EXISTS `consignment_addressee` (
+CREATE TABLE IF NOT EXISTS `consignment_addressee` ( -- New table: owners/addressees of the consignment
 	`ID` INT NOT NULL AUTO_INCREMENT,
 	`consignment` INT, -- The ID of the consignment
 	`person_code` CHAR(6), -- The ID of the owner/addressee
-	`test` VARCHAR(255), -- The name as it appears in the register
+	`text` VARCHAR(255), -- The name as it appears in the register
+	PRIMARY KEY (`ID`)
+);
+
+CREATE TABLE IF NOT EXISTS `consignment_signatory` ( -- New table: persons who sign the customs register
+	`ID` INT NOT NULL AUTO_INCREMENT,
+	`consignment` INT, -- The ID of the consignment
+	`person_code` CHAR(6), -- The ID of the customs register signatory
+	`text` VARCHAR(255), -- The name as it appears in the register
+	PRIMARY KEY (`ID`)
+);
+
+CREATE TABLE IF NOT EXISTS `consignment_agent` ( -- New table: handling agents of the consignment
+	`ID` INT NOT NULL AUTO_INCREMENT,
+	`consignment` INT, -- The ID of the consignment
+	`person_code` CHAR(6), -- The ID of the handling agent
+	`text` VARCHAR(255), -- The name as it appears in the register
 	PRIMARY KEY (`ID`)
 );
 
