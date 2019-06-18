@@ -197,7 +197,7 @@ about partnerships, government agencies etc.
 */
 
 CREATE TABLE IF NOT EXISTS `agent` ( -- From `people`
-	`agent_code` CHAR(6) NOT NULL,	-- Former 'agent_code'
+	`agent_code` CHAR(6) NOT NULL,	-- Former 'person_code'
 	`name` VARCHAR(255),
 	`sex` CHAR(1),					-- Gender of person, or of members if known
 	`title` VARCHAR(255),
