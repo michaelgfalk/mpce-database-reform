@@ -567,7 +567,7 @@ CREATE TABLE IF NOT EXISTS `consignment_signatory` ( -- New table: persons who s
 	PRIMARY KEY (`ID`)
 );
 
-CREATE TABLE IF NOT EXISTS `consignment_agent` ( -- New table: handling agents of the consignment
+CREATE TABLE IF NOT EXISTS `consignment_handling_agent` ( -- New table: handling agents of the consignment
 	`ID` INT NOT NULL AUTO_INCREMENT,
 	`consignment` INT, -- The ID of the consignment
 	`agent_code` CHAR(8), -- The ID of the handling agent
@@ -718,7 +718,7 @@ CREATE TABLE IF NOT EXISTS `parisian_stock_auction` ( -- From manuscript_sales_e
 
 CREATE TABLE IF NOT EXISTS `auction_administrator` (
 	`auction_id` CHAR(5) NOT NULL, -- ID of the auction
-	`administrator_id` CHAR(8) NOT NULL, -- ID of the administrator
+	`administrator_id` CHAR(8) NOT NULL, -- agent_code of the administrator
 	`administrator_role` INT NOT NULL,
 	PRIMARY KEY (`auction_id`, `administrator_id`)
 );

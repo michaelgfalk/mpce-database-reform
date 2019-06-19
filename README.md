@@ -47,6 +47,10 @@ reform-db --help
 
 In the coming months, the updated version of the FBTEE database will be available online, and the raw SQL will be freely available to download. Please check back here, or at [our project blog](https://frenchbooktrade.wordpress.com/) for updates.
 
+## MMF-2
+
+The schema included in this repo contains table definitions for the MMF-2 database. But it does not import the data into the tables, and the SQL does not necessarily represent the most up-to-date version of the schema. Please see the [mmf-parser project](https://github.com/michaelgfalk/mmf-parser) for the latest build scripts for the **MMF-2**.
+
 ## Credits
 
 * **Michael Falk** (maintainer), Developer and Research Project Manager, Digital Humanities Research Group, Western Sydney University

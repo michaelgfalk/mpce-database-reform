@@ -530,7 +530,7 @@ class LocalDB():
         self._import_spreadsheet_agents(
             'mpce.consignment_signatory', consignments['Confiscations master'], cur, 27, 29)
         self._import_spreadsheet_agents(
-            'mpce.consignment_agent', consignments['Confiscations master'], cur, 17, 18)
+            'mpce.consignment_handling_agent', consignments['Confiscations master'], cur, 17, 18)
 
         # Import permission simple
 
@@ -694,7 +694,8 @@ class LocalDB():
             f'{cur.rowcount} profession codes assigned to "aucteurs", "redacteurs" and "traducteurs".')
         self.conn.commit()
         
-        # Resolve clients
+        # RESOLVE CLIENTS
+
         # Create a combined list of all clients
         print('Finding client codes...')
         cur.execute("""
@@ -736,6 +737,7 @@ class LocalDB():
                 Client_Code, Agent_Name, Place_Code, Notes
             FROM manuscripts.manuscript_agents_inspectors
         """)
+        
         # New clients in consignments workbook
         with path('mpcereform.spreadsheets', 'consignments.xlsx') as p:
             print(f'Scanning {p} ...')
@@ -755,6 +757,7 @@ class LocalDB():
             )
             VALUES (%s, %s, %s)
         """, [(code, name, place) for _, (code, name, place) in consignment_clients.items()])
+        
         # New clients in permission simple
         with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as p:
             print(f'Scanning {p} ...')
@@ -769,56 +772,187 @@ class LocalDB():
         self.conn.commit()
         cur.execute('SELECT COUNT(client_code) FROM mpce.all_clients')
         print(f'{cur.fetchone()[0]} clients found across all datasets.')
-
-        # Insert data on new agents
         
-        # Create temporary client_agent table from stn_client_agent
-        # Insert new agent codes
-        # Update client codes in all relevant tables
+        # Insert data on new agents
 
+        # Create temporary client_agent table from stn_client_agent
         cur.execute("""
-            SELECT *
+            CREATE TEMPORARY TABLE mpce.client_agent (
+                `client_code` CHAR(6) NOT NULL,
+                `agent_code` CHAR(8) NOT NULL,
+                PRIMARY KEY (`client_code`, `agent_code`)
+            )
+            SELECT * FROM mpce.stn_client_agent
+        """)
+
+        # Generate new agent codes
+        cur.execute("""
+            SELECT
+                ac.client_code, ac.name, ac.alt_name,
+                ac.prof_codes, ac.place_codes, ac.gender,
+                ac.notes, ac.corporate
             FROM mpce.all_clients AS ac
-                LEFT JOIN mpce.stn_client_agent AS sca
-                    ON ac.client_code = sca.client_code
-            WHERE sca.client_code IS NULL
+                LEFT JOIN mpce.client_agent AS ca
+                    ON ac.client_code = ca.client_code
+            WHERE ca.agent_code IS NULL
         """)
         new_agents = cur.fetchall()
         num_new_codes = len(new_agents)
         print(f'Assigning new agent codes to {num_new_codes} clients ...')
         code_list = self._get_code_sequence(
             'mpce.agent', 'agent_code', num_new_codes, cur)
-        # cur.executemany("""
-        #     INSERT INTO mpce.agent (
-        #         agent_code, name, sex, title, other_names,
-        #         designation, status, start_date, end_date,
-        #         notes, cerl_id, corporate_entity
-        #     )
-        #     VALUES (
-        #         %s, 
-        #     )
-        # """)
+        cur.executemany("""
+            INSERT INTO mpce.client_agent (client_code, agent_code)
+            VALUES (%s, %s)
+        """, seq_params=[(client[0], code) for client, code in zip(new_agents, code_list)])
         
-        # code VARCHAR(255) PRIMARY KEY,
-        #         name VARCHAR(255),
-        #         alt_name VARCHAR(255),
-        #         prof_codes VARCHAR(255),
-        #         place_codes VARCHAR(255),
-        #         gender VARCHAR(255),
-        #         notes TEXT,
-        #         corporate BIT(1)
+        # Process new_agent data:
+        processed_agents = []
+        new_prof_assigns = []
+        new_place_assigns = []
+        for client, agent_code in zip(new_agents, code_list):
+            _, name, alt_names, prof_codes = client[0:4]
+            place_codes, gender, notes, corporate = client[4:8]
 
+            # Process gender
+            if gender is not None:
+                if gender.lower().startswith('mixed'):
+                    gender = None
+                    corporate = True
+                elif gender.lower().startswith('m'):
+                    gender = 'M'
+                elif gender.lower().startswith('f'):
+                    gender = 'F'
+
+            # Process addresses
+            if place_codes is not None:
+                for place in re.split(r',\s*|;\s*', place_codes):
+                    new_place_assigns.append((agent_code, place))
+            
+            # Process professions
+            if prof_codes is not None:
+                for prof in re.split(r',\s*|;\s*', prof_codes):
+                    new_prof_assigns.append((agent_code, prof))
+            
+            # Add processed agent to list
+            processed_agents.append(
+                (agent_code, name, alt_names, gender, notes, corporate)
+            )
+
+        # Generate new agents
+        cur.executemany("""
+            INSERT IGNORE INTO mpce.agent (
+                agent_code, name, other_names, sex, notes, corporate_entity
+            )
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, seq_params = processed_agents)
+        print(f'{cur.rowcount} new agents added to `mpce.agent`.')
+        self.conn.commit()
         
-        # Lengthen agent_codes by two digits
+        # Assign places to new agents:
+        # Using stn address data
+        cur.execute("""
+            INSERT INTO mpce.agent_address (agent_code, place_code, address)
+            SELECT ca.agent_code, addr.place_code, addr.address
+            FROM manuscripts.clients_addresses AS addr
+                LEFT JOIN mpce.client_agent AS ca
+                    ON addr.client_code = ca.client_code
+        """)
+        print(f'{cur.rowcount} addresses imported from `manuscripts.clients_addresses`.')
+        
+        # Using generated python list
+        # I tried to do this by creating a temporary index on agent_code and place_code,
+        # and then doing an INSERT IGNORE, but for some reason mysql.connector kept
+        # throwing an IntegrityError. So here's a hacky version...
+        cur.execute('SELECT agent_code, place_code FROM mpce.agent_address')
+        existing_addresses = set(cur.fetchall())
+        new_place_assigns = [assign for assign in new_place_assigns if assign not in existing_addresses]
+        cur.executemany("""
+            INSERT INTO mpce.agent_address (agent_code, place_code)
+            VALUES (%s, %s)
+        """, seq_params = new_place_assigns)
+        print(f'{cur.rowcount} addresses imported from new datasets.')
+        self.conn.commit()
 
+        # Assign professions to new agents:
+        cur.executemany("""
+            INSERT IGNORE INTO mpce.agent_profession
+            VALUES (%s, %s)
+        """, seq_params=new_prof_assigns)
+        
+        # Use temporary join table to replace client codes throughout db:
+        
+        cur.execute("""
+            UPDATE mpce.consignment AS tbl
+            LEFT JOIN mpce.client_agent AS ca ON tbl.other_stakeholder = ca.client_code
+            SET tbl.other_stakeholder = ca.agent_code
+        """)
+        cur.execute("""
+            UPDATE mpce.consignment AS tbl
+            LEFT JOIN mpce.client_agent AS ca ON tbl.returned_to_agent = ca.client_code
+            SET tbl.returned_to_agent = ca.agent_code
+        """)
+        print('Client codes in `mpce.consignment` resolved into agent_codes.')
+        # TO DO: all_collectors, all_censors
 
-        # Transform all client_codes across the database
-
+        cur.execute("""
+            UPDATE mpce.consignment_addressee AS tbl
+            LEFT JOIN mpce.client_agent AS ca ON tbl.agent_code = ca.client_code
+            SET tbl.agent_code = ca.agent_code
+        """)
+        print('Client codes in `mpce.consignment_addressee` resolved into agent_codes.')
+        cur.execute("""
+            UPDATE mpce.consignment_signatory AS tbl
+            LEFT JOIN mpce.client_agent AS ca ON tbl.agent_code = ca.client_code
+            SET tbl.agent_code = ca.agent_code
+        """)
+        print('Client codes in `mpce.consignment_signatory` resolved into agent_codes.')
+        cur.execute("""
+            UPDATE mpce.consignment_handling_agent AS tbl
+            LEFT JOIN mpce.client_agent AS ca ON tbl.agent_code = ca.client_code
+            SET tbl.agent_code = ca.agent_code
+        """)
+        print('Client codes in `mpce.consignment_handling_agent` resolved into agent_codes.')
+        
+        cur.execute("""
+            UPDATE mpce.stamping AS tbl
+            LEFT JOIN mpce.client_agent AS ca ON tbl.permitted_dealer = ca.client_code
+            SET tbl.permitted_dealer = ca.agent_code
+        """)
+        cur.execute("""
+            UPDATE mpce.stamping AS tbl
+            LEFT JOIN mpce.client_agent AS ca ON tbl.attending_inspector = ca.client_code
+            SET tbl.attending_inspector = ca.agent_code
+        """)
+        cur.execute("""
+            UPDATE mpce.stamping AS tbl
+            LEFT JOIN mpce.client_agent AS ca ON tbl.attending_adjoint = ca.client_code
+            SET tbl.attending_adjoint = ca.agent_code
+        """)
+        print('Client codes in `mpce.stamping` resolved into agent_codes.')
+        
+        cur.execute("""
+            UPDATE mpce.parisian_stock_auction AS tbl
+            LEFT JOIN mpce.client_agent AS ca ON tbl.previous_owner = ca.client_code
+            SET tbl.previous_owner = ca.agent_code
+        """)
+        print('Client codes in `mpce.parisian_stock_auction` resolved into agent_codes.')
+        cur.execute("""
+            UPDATE mpce.auction_administrator AS tbl
+            LEFT JOIN mpce.client_agent AS ca ON tbl.administrator_id = ca.client_code
+            SET tbl.administrator_id = ca.agent_code
+        """)
+        print('Client codes in `mpce.auction_administrator` resolved into agent_codes.')
+        cur.execute("""
+            UPDATE mpce.parisian_stock_sale AS tbl
+            LEFT JOIN mpce.client_agent AS ca ON tbl.purchaser = ca.client_code
+            SET tbl.purchaser = ca.agent_code
+        """)
+        print('Client codes in `mpce.parisian_stock_sale` resolved into agent_codes.')
+        self.conn.commit()
 
         # Finish
         cur.close()
-
-
 
     def build_indexes(self):
         """Builds key indexes for common queries."""
