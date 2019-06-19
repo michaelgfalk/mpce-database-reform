@@ -25,7 +25,7 @@ def parse_date(string):
     month = '00'
     day = '00'
 
-    if type(string) == str:
+    if type(string) == str and len(string) > 0:
 
         # Regexes to find components
         year_mtch = re.search(r'\b\d{4}\b', string)

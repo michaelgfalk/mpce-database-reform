@@ -592,6 +592,7 @@ class LocalDB():
             FROM manuscripts.people_professions
         """)
         print(f'Professions and assignments imported from `manuscripts.professions` and `manuscripts.people_professions`.')
+        
         # The permission simple sheet contains some new professions
         with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as p:
             print(f'Importing new profession data from {p}')
@@ -794,7 +795,8 @@ class LocalDB():
             FROM mpce.all_clients AS ac
                 LEFT JOIN mpce.client_agent AS ca
                     ON ac.client_code = ca.client_code
-            WHERE ca.agent_code IS NULL
+            WHERE ca.agent_code IS NULL AND
+                ac.name NOT LIKE 'null'
         """)
         new_agents = cur.fetchall()
         num_new_codes = len(new_agents)
@@ -881,7 +883,6 @@ class LocalDB():
         """, seq_params=new_prof_assigns)
         
         # Use temporary join table to replace client codes throughout db:
-        
         cur.execute("""
             UPDATE mpce.consignment AS tbl
             LEFT JOIN mpce.client_agent AS ca ON tbl.other_stakeholder = ca.client_code
@@ -893,7 +894,66 @@ class LocalDB():
             SET tbl.returned_to_agent = ca.agent_code
         """)
         print('Client codes in `mpce.consignment` resolved into agent_codes.')
-        # TO DO: all_collectors, all_censors
+        
+        # Story all_collectors and all_censors as strings
+        cur.execute("""
+            CREATE TEMPORARY TABLE all_collectors (
+                `consignment` INT,
+                `agent_code` CHAR(8),
+                `text` VARCHAR(255),
+                PRIMARY KEY (`consignment`,`agent_code`)
+            );
+        """)
+        cur.execute("""
+            CREATE TEMPORARY TABLE all_censors (
+                `consignment` INT,
+                `agent_code` CHAR(8),
+                `text` VARCHAR(255),
+                PRIMARY KEY (`consignment`,`agent_code`)
+            );
+        """)
+
+        # Get collector and censor data from consignments workbook
+        self._import_spreadsheet_agents(
+            'all_collectors', consignments['Confiscations master'], cur, 24, 25)
+        self._import_spreadsheet_agents(
+            'all_censors', consignments['Confiscations master'], cur, 20, 21)
+        # Splice into consignment table
+        cur.execute("""
+            UPDATE mpce.consignment AS cons
+            LEFT JOIN (
+                SELECT
+                    consignment,
+                    GROUP_CONCAT(
+                        CONCAT(all_c.text, ' (', ac.agent_code, ')')
+                        SEPARATOR '; '
+                    ) AS out_string
+                FROM all_collectors AS all_c
+                    LEFT JOIN client_agent AS ac
+                        ON all_c.agent_code = ac.client_code
+                GROUP BY consignment
+            ) AS colls
+            ON colls.consignment = cons.ID
+            SET cons.all_collectors = colls.out_string
+        """)
+        cur.execute("""
+            UPDATE mpce.consignment AS cons
+            LEFT JOIN (
+                SELECT
+                    consignment,
+                    GROUP_CONCAT(
+                        CONCAT(all_c.text, ' (', ac.agent_code, ')')
+                        SEPARATOR '; '
+                    ) AS out_string
+                FROM all_censors AS all_c
+                    LEFT JOIN client_agent AS ac
+                        ON all_c.agent_code = ac.client_code
+                GROUP BY consignment
+            ) AS colls
+            ON colls.consignment = cons.ID
+            SET cons.all_censors = colls.out_string
+        """)
+        print(f'Censor and collector data imported into `mpce.consignment`.')
 
         cur.execute("""
             UPDATE mpce.consignment_addressee AS tbl

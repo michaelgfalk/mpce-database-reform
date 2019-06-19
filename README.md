@@ -49,7 +49,7 @@ In the coming months, the updated version of the FBTEE database will be availabl
 
 ## MMF-2
 
-The schema included in this repo contains table definitions for the MMF-2 database. But it does not import the data into the tables, and the SQL does not necessarily represent the most up-to-date version of the schema. Please see the [mmf-parser project](https://github.com/michaelgfalk/mmf-parser) for the latest build scripts for the **MMF-2**.
+The schema included in this repo contains table definitions for the MMF-2 database. But it does not import the data into the tables, and the SQL does not necessarily represent the most up-to-date version of the schema. Please see the [mmf-parser project](https://github.com/michaelgfalk/mmf-parser) for the latest build scripts for the **MMF-2** tables.
 
 ## Credits
 
