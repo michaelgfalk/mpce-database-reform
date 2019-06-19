@@ -771,6 +771,11 @@ class LocalDB():
         print(f'{cur.fetchone()[0]} clients found across all datasets.')
 
         # Insert data on new agents
+        
+        # Create temporary client_agent table from stn_client_agent
+        # Insert new agent codes
+        # Update client codes in all relevant tables
+
         cur.execute("""
             SELECT *
             FROM mpce.all_clients AS ac
@@ -817,6 +822,9 @@ class LocalDB():
 
     def build_indexes(self):
         """Builds key indexes for common queries."""
+
+        # QUERY: add foreign key constraints at this stage?
+
         pass
 
     # Utility methods
