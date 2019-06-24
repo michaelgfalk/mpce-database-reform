@@ -17,5 +17,9 @@ setup(
     url="http://fbtee.uws.edu.au/mpce/",
     entry_points={
         'console_scripts': ['reform-db=mpcereform.reform:main']
-    }
+    },
+    install_requires=[
+        'openpyxl',
+        'mysql-connector'
+    ]
 )
