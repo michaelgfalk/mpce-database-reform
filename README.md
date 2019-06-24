@@ -62,10 +62,10 @@ The schema included in this repo contains table definitions for the MMF-2 databa
 * **Katie McDonough**, data entry, database design
 * **Jason Ensor**, database design
 * **Juliette Reboul**, data entry
-* **Robert Darnton**, owner of [A Literary Tour de France](http://www.robertdarnton.org/), source of 'CommandesLibrairesfrancais.xlsx' data
+* **Robert Darnton**, owner of [A Literary Tour de France](http://www.robertdarnton.org/), source of `CommandesLibrairesfrancais.xlsx` data
 
 ## License
 
-All code in this repository: MIT (see attached license file)
-All spreadsheets other than 'CommandesLibraires.xlsx': TBC
-'CommandesLibrairesfrancais.xlsx': [CC BY-NC 4.0](http://creativecommons.org/licenses/by-nc/4.0/)
+* All code in this repository: MIT (see attached license file)
+* All spreadsheets other than `CommandesLibrairesfrancais.xlsx`: TBC
+* `CommandesLibrairesfrancais.xlsx`: [CC BY-NC 4.0](http://creativecommons.org/licenses/by-nc/4.0/)
