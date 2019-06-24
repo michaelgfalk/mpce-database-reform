@@ -68,4 +68,4 @@ The schema included in this repo contains table definitions for the MMF-2 databa
 
 * All code in this repository: MIT (see attached license file)
 * All spreadsheets other than `CommandesLibrairesfrancais.xlsx`: TBC
-* `CommandesLibrairesfrancais.xlsx`: [CC BY-NC 4.0](http://creativecommons.org/licenses/by-nc/4.0/)
+* `CommandesLibrairesfrancais.xlsx`: [CC BY-NC 4.0](http://creativecommons.org/licenses/by-nc/4.0/) *Changes to data: file type of spreadsheet updated, data imported to MySQL table and tagged with FBTEE metadata* 
