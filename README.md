@@ -66,6 +66,6 @@ The schema included in this repo contains table definitions for the MMF-2 databa
 
 ## License
 
-All computer code: MIT (see attached license file)
+All code in this repository: MIT (see attached license file)
 All spreadsheets other than 'CommandesLibraires.xlsx': TBC
 'CommandesLibrairesfrancais.xlsx': [CC BY-NC 4.0](http://creativecommons.org/licenses/by-nc/4.0/)
