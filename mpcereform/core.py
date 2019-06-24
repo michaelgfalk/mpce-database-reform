@@ -578,7 +578,8 @@ class LocalDB():
             long_title, ID, ordered_by, _, notes = row[6:11]
             
             # Get client code
-            ordered_by = self.DARNTON_CLIENTS[ordered_by]
+            if ordered_by in self.DARNTON_CLIENTS:
+                ordered_by = self.DARNTON_CLIENTS[ordered_by]
 
             darnton_data.append(
                 (ID, title, format, volumes, author, num, date,
@@ -592,7 +593,7 @@ class LocalDB():
             )
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, seq_params = darnton_data)
-        print(f'{cur.rowcount} book orders imported into `mpce.stn_darnton_sample_order`')
+        print(f'{cur.rowcount} book orders imported into `mpce.stn_darnton_sample_order`.')
 
         # Import provincial inspections
         # with path('mpcereform.spreadsheets', 'provincial_inspections.xlsx') as pth:
@@ -1098,7 +1099,7 @@ class LocalDB():
                     ON tca.client_code = sca.client_code
             WHERE sc.partnership IS TRUE
         """)
-        print(f'{cur.rowcount} memberships of corporate entities imported from stn data.')
+        print(f'{cur.rowcount} memberships of corporate entities imported from STN data.')
         self.conn.commit()
 
         # Import new agents from `clients_without_person_codes.xlsx`
