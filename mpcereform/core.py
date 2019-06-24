@@ -4,7 +4,6 @@ import mysql.connector as mysql
 import re
 from importlib.resources import read_text, path
 from openpyxl import load_workbook
-from itertools import zip_longest
 from uuid import uuid1
 
 from mpcereform.utils import parse_date
@@ -532,8 +531,15 @@ class LocalDB():
         self._import_spreadsheet_agents(
             'mpce.consignment_handling_agent', consignments['Confiscations master'], cur, 17, 18)
 
-        # Import permission simple
+        # TO DO: Import permission simple
+        with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as pth:
+            perm_simp = load_workbook(pth, read_only=True, keep_vba=False)
+        
+        for row in perm_simp['main sheet'].iter_rows(min_row=2, values_only=True):
+            continue
 
+        # Import condemnations
+        
 
         # Finish
         cur.close()
@@ -1136,15 +1142,15 @@ class LocalDB():
         cur.execute("SELECT COUNT(*) FROM mpce.banned_list_record")
         events['banned by the authorities'] = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM mpce.bastille_register_record")
-        events['sequestered in the Bastilee'] = cur.fetchone()[0]
+        events['sequestered in the Bastille'] = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM mpce.condemnation")
         events['condemned by the authorities'] = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM mpce.confiscation")
         events['confiscated by French customs'] = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM mpce.parisian_stock_sale")
-        events['sold at the Paris stock sales'] = cur.fetchone()[0]
+        events['sold at the Paris stock sales, or the right to print them'] = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM mpce.permission_simple_grant")
-        events['licensed to be published under the permission simple'] = cur.fetchone()[0]
+        events['licensed under the permission simple'] = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM mpce.provincial_inspection")
         events['inspected by provincial authorities'] = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM mpce.stamping")
