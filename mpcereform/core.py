@@ -566,7 +566,7 @@ class LocalDB():
         #     continue
 
         # Import Darnton sample
-        with path('mpcereform.spreadsheets', 'CommandesLibrairesfrancais.xls') as pth:
+        with path('mpcereform.spreadsheets', 'CommandesLibrairesfrancais.xlsx') as pth:
             darnton_sample = load_workbook(pth, read_only=True, keep_vba=False)
             print(f'Importing additional STN order data from {pth} ...')
 
