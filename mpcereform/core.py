@@ -60,6 +60,26 @@ class LocalDB():
         'bilan (adjustment)':3
     }
 
+    DARNTON_CLIENTS = {
+        # Key for client information in Robert Darnton's STN sample
+        'Bergeret': 'cl0335',
+        'Buchet': 'cl1468',
+        'Caldesaigues': 'cl1203',
+        'Charmet': 'cl0274',
+        'Chevrier': 'cl1763',
+        'Couret de Villeneuve': 'cl1510',
+        'Fontanel': 'cl1224',
+        'Gaude': 'cl1472',
+        'Lair': 'cl0328',
+        'Lepagnez': 'cl0288',
+        'Letourmy': 'cl1514',
+        'Mossy': 'cl1210',
+        'Pavie': 'cl1834',
+        'Rigaud': 'cl1266',
+        'Robert&Gauthier': 'cl0353',
+        'Sens': 'cl2067'
+    }
+
     def __init__(self, user = 'root', host = '127.0.0.1', password = None):
         self.conn = mysql.connect(user = user, host = host, password = password)
 
@@ -532,14 +552,55 @@ class LocalDB():
             'mpce.consignment_handling_agent', consignments['Confiscations master'], cur, 17, 18)
 
         # TO DO: Import permission simple
-        with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as pth:
-            perm_simp = load_workbook(pth, read_only=True, keep_vba=False)
+        # with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as pth:
+        #     perm_simp = load_workbook(pth, read_only=True, keep_vba=False)
         
-        for row in perm_simp['main sheet'].iter_rows(min_row=2, values_only=True):
-            continue
+        # for row in perm_simp['main sheet'].iter_rows(min_row=2, values_only=True):
+        #     continue
 
         # Import condemnations
-        
+        # with path('mpcereform.spreadsheets', 'condemnations.xlsx') as pth:
+        #     comdemn = load_workbook(pth, read_only=True, keep_vba=False)
+
+        # for row in comdemn['XXXXX'].iter_rows(min_row=2, values_only=True):
+        #     continue
+
+        # Import Darnton sample
+        with path('mpcereform.spreadsheets', 'CommandesLibrairesfrancais.xls') as pth:
+            darnton_sample = load_workbook(pth, read_only=True, keep_vba=False)
+            print(f'Importing additional STN order data from {pth} ...')
+
+        darnton_data = []
+        for row in darnton_sample['FicheSauvegarde'].iter_rows(min_row=2, max_row=3399, max_col=11, values_only=True):
+            
+            # Unpack row
+            title, format, volumes, author, num, date = row[:6]
+            long_title, ID, ordered_by, _, notes = row[6:11]
+            
+            # Get client code
+            ordered_by = self.DARNTON_CLIENTS[ordered_by]
+
+            darnton_data.append(
+                (ID, title, format, volumes, author, num, date,
+                long_title, ordered_by, notes)
+            )
+
+        cur.executemany("""
+            INSERT INTO mpce.stn_darnton_sample_order (
+                ID, title, format, volumes, author, num_ordered, date_ordered,
+                edition_long_title, ordered_by, notes
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, seq_params = darnton_data)
+        print(f'{cur.rowcount} book orders imported into `mpce.stn_darnton_sample_order`')
+
+        # Import provincial inspections
+        # with path('mpcereform.spreadsheets', 'provincial_inspections.xlsx') as pth:
+        #     perm_simp = load_workbook(pth, read_only=True, keep_vba=False)
+
+        # for row in perm_simp['Editions and Addresses'].iter_rows(min_row=2, values_only=True):
+        #     continue
+
 
         # Finish
         cur.close()

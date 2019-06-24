@@ -753,6 +753,10 @@ based in Switzerland. Their ledgers record not only which books they bought and
 sold, but also which books they printed, how many copies they had lying in the
 warehouse, and which titles were gifted to or returned by their clients.
 
+In addition to the FBTEE-1 data, our database also includes data published and
+made available to other scholars by Robert Darnton: http://www.robertdarnton.org/literarytour/booksellers
+His data comprises a sample of orders from the books of several of the STN's clients.
+
 */
 
 CREATE TABLE IF NOT EXISTS `stn_order` ( -- From orders
@@ -808,6 +812,20 @@ CREATE TABLE IF NOT EXISTS `stn_transaction_volumes_exchanged` ( -- From transac
 	`volume_number` INT NOT NULL,
 	`number_of_copies` INT,
 	PRIMARY KEY(`transaction_code`, `order_code`, `volume_number`)
+);
+
+CREATE TABLE IF NOT EXISTS `stn_darnton_sample_order` ( -- From http://www.robertdarnton.org/sites/default/files/CommandesLibrairesfrancais.xls
+	`ID` INT AUTO_INCREMENT PRIMARY KEY,		-- simple numeric ID
+	`title` VARCHAR(255),						-- Darnton's short title
+	`edition_code` CHAR(12),					-- edition code of ordered book
+	`format` VARCHAR(255),						-- format of book
+	`volumes` VARCHAR(255),						-- number of volumes
+	`author` VARCHAR(255),						-- name of author
+	`num_ordered` VARCHAR(255),					-- number ordered
+	`date_ordered` DATE,						-- date order was placed
+	`edition_long_title` TEXT,					-- long title of the book
+	`ordered_by` CHAR(6),						-- !FK: client_code of STN client
+	`notes` TEXT								-- Darnton's research notes
 );
 
 /*
