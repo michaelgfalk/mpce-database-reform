@@ -777,13 +777,19 @@ class LocalDB():
         # Insert data on new agents
 
         # Create temporary client_agent table from stn_client_agent
+        # Remember to exclude partnerships--these relationships will go in the
+        # 'is_member_of' table
         cur.execute("""
             CREATE TEMPORARY TABLE mpce.client_agent (
                 `client_code` CHAR(6) NOT NULL,
                 `agent_code` CHAR(8) NOT NULL,
                 PRIMARY KEY (`client_code`, `agent_code`)
             )
-            SELECT * FROM mpce.stn_client_agent
+            SELECT sca.client_code, sca.agent_code
+            FROM mpce.stn_client_agent AS sca
+                LEFT JOIN mpce.stn_client AS sc
+                    ON sca.client_code = sc.client_code
+            WHERE sc.partnership IS FALSE
         """)
 
         # Generate new agent codes
@@ -795,8 +801,9 @@ class LocalDB():
             FROM mpce.all_clients AS ac
                 LEFT JOIN mpce.client_agent AS ca
                     ON ac.client_code = ca.client_code
-            WHERE ca.agent_code IS NULL AND
-                ac.name NOT LIKE 'null'
+            WHERE 
+                (ca.agent_code IS NULL or ac.corporate IS TRUE)
+                AND ac.name NOT LIKE 'null'
         """)
         new_agents = cur.fetchall()
         num_new_codes = len(new_agents)
@@ -1010,6 +1017,29 @@ class LocalDB():
         """)
         print('Client codes in `mpce.parisian_stock_sale` resolved into agent_codes.')
         self.conn.commit()
+
+        # Populate 'is member of' from stn data
+        cur.execute("""
+            INSERT INTO mpce.is_member_of (member, corporate_entity)
+            SELECT
+                sca.agent_code AS member_agent_code,
+                tca.agent_code AS entity_agent_code
+            FROM mpce.stn_client_agent AS sca
+                LEFT JOIN mpce.stn_client AS sc
+                    ON sc.client_code = sca.client_code
+                LEFT JOIN mpce.client_agent AS tca
+                    ON tca.client_code = sca.client_code
+            WHERE sc.partnership IS TRUE
+        """)
+        print(f'{cur.rowcount} memberships of corporate entities imported from stn data.')
+        self.conn.commit()
+
+        # Import new agents from `clients_without_person_codes.xlsx`
+        with path('mpcereform.spreadsheets', 'clients_without_person_codes.xlsx') as pth:
+            new_stn_clients = load_workbook(pth, read_only=True, keep_vba=False)
+
+        for row in new_stn_clients['clients_without_person_codes'].iter_rows():
+            continue
 
         # Finish
         cur.close()
