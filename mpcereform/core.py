@@ -1036,10 +1036,34 @@ class LocalDB():
 
         # Import new agents from `clients_without_person_codes.xlsx`
         with path('mpcereform.spreadsheets', 'clients_without_person_codes.xlsx') as pth:
+            print(f'Creating new agents according from data in {pth} ...')
             new_stn_clients = load_workbook(pth, read_only=True, keep_vba=False)
 
-        for row in new_stn_clients['clients_without_person_codes'].iter_rows():
-            continue
+        new_cl_ls = []
+        for row in new_stn_clients['clients_without_person_codes'].iter_rows(min_row=2, values_only=True):
+            client_code = row[0]
+            client_name = row[1]
+            if row[2] == 'Y':
+                corporate = False
+            elif row[3] == 'Y':
+                corporate = True
+            else:
+                continue
+            notes = row[4]
+            new_cl_ls.append((client_code, client_name, corporate, notes))
+        new_cl_agts = self._get_code_sequence('mpce.agent', 'agent_code', len(new_cl_ls), cur)
+
+        cur.executemany("""
+            INSERT INTO agent (agent_code, name, corporate_entity, notes)
+            VALUES (%s, %s, %s, %s)
+        """, seq_params=[(code, name, corp, notes) for code, (client, name, corp, notes) in zip(new_cl_agts, new_cl_ls)])
+        print(f'{cur.rowcount} new agents created.')
+        cur.executemany("""
+            INSERT INTO stn_client_agent (client_code, agent_code)
+            VALUES (%s, %s)
+        """, seq_params=[(client, code) for code, (client, name, corp, notes) in zip(new_cl_agts, new_cl_ls)])
+        print(f'{cur.rowcount} new relationships inserted into `stn_client_agent`')
+        self.conn.commit()
 
         # Finish
         cur.close()
@@ -1050,6 +1074,95 @@ class LocalDB():
         # QUERY: add foreign key constraints at this stage?
 
         pass
+
+    def summarise(self):
+        """Outputs summary statistics about the database."""
+
+        cur = self.conn.cursor()
+
+        print('\nMPCE data import complete.\n')
+        print('SUMMARY STATISTICS:\n========================\n')
+
+        # Works
+        cur.execute('SELECT COUNT(work_code) FROM mpce.work')
+        print(f'Distinct works: {cur.fetchone()[0]}, which have been assigned')
+        cur.execute('SELECT COUNT(*) FROM mpce.work_keyword')
+        print(f'     {cur.fetchone()[0]} keywords from a set of')
+        cur.execute('SELECT COUNT(keyword_code) FROM mpce.keyword')
+        print(f'     {cur.fetchone()[0]} categories devised by the project')
+
+        print('')
+
+        # Editions
+        cur.execute('SELECT COUNT(edition_code) FROM mpce.edition')
+        print(f'Distinct editions: {cur.fetchone()[0]}, produced by')
+        cur.execute("""
+            SELECT at.type, COUNT(*)
+            FROM mpce.edition_author AS ea
+                LEFT JOIN mpce.author_type AS at
+                    ON ea.author_type = at.ID
+            GROUP BY ea.author_type
+        """)
+        for type, n in cur.fetchall():
+            if type is None:
+                continue
+            if type in {'Primary', 'Secondary'}:
+                print(f'     {n} {type} authors')
+            else:
+                print(f'     {n} {type}s')
+        
+        print('')
+
+        
+        # Agents:
+        cur.execute("SELECT COUNT(agent_code), SUM(corporate_entity) FROM mpce.agent")
+        agents, entities = cur.fetchone()
+        print(f'Distinct agents: {agents}, of which')
+        print(f'     {agents - entities} are persons')
+        print(f'     {entities} are corporate entities')
+        cur.execute('SELECT COUNT(*) FROM mpce.stn_client_agent')
+        print(f'     {cur.fetchone()[0]} were clients of the STN')
+        
+        print('')
+
+        # Places:
+        cur.execute("SELECT COUNT(place_code) FROM mpce.place")
+        print(f'Distinct places: {cur.fetchone()[0]}')
+
+        print('')
+
+        # Events
+        events = {}
+        cur.execute("SELECT COUNT(*) FROM mpce.banned_list_record")
+        events['banned by the authorities'] = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM mpce.bastille_register_record")
+        events['sequestered in the Bastilee'] = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM mpce.condemnation")
+        events['condemned by the authorities'] = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM mpce.confiscation")
+        events['confiscated by French customs'] = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM mpce.parisian_stock_sale")
+        events['sold at the Paris stock sales'] = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM mpce.permission_simple_grant")
+        events['licensed to be published under the permission simple'] = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM mpce.provincial_inspection")
+        events['inspected by provincial authorities'] = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM mpce.stamping")
+        events['stamped to legalise their sale, though they were pirated'] = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM mpce.stn_transaction")
+        events[(
+            'bought, sold, sent, returned, printed, warehoused or otherwise\n'
+            '         dealt with by the Société Typographique de Neuchâtel'
+        )] = cur.fetchone()[0]
+
+        print(f'Which were involved in\n')
+        print(f'     {sum(events.values())} distinct events\n')
+        print(f'in the history of the book, including...\n')
+
+        for key, val in events.items():
+            print(f'     {val} times books were {key}')
+
+        cur.close()
 
     # Utility methods
     def _get_code_sequence(self, table, column, n, cursor = None):
