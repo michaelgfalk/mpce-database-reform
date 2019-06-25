@@ -554,9 +554,89 @@ class LocalDB():
         # TO DO: Import permission simple
         with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as pth:
             perm_simp = load_workbook(pth, read_only=True, keep_vba=False)
+            print(f'Importing permission simple data from {pth} ...')
         
-        for row in perm_simp['main sheet'].iter_rows(min_row=2, values_only=True):
-            continue
+        perm_simp_grants = []
+        for row in perm_simp['Licences'].iter_rows(min_row=2, max_row=1768, max_col=14, values_only=True):
+            daw_wk, daw_ed, date, ed, _, _ = row[:6]
+            licensee, _, _, _, l_cop, p_cop, spbk, ed = row[6:14]
+            
+            date = parse_date(date)
+
+            perm_simp_grants.append(
+                (daw_wk, daw_ed, date, ed, licensee, l_cop, p_cop, spbk, ed)
+            )
+
+        cur.executemany("""
+            INSERT INTO mpce.permission_simple_grant (
+                dawson_work, dawson_edition, date_granted,
+                edition_code, licensee, licensed_copies,
+                printed_copies_estimate, work_confirmed,
+                edition_confirmed
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, seq_params=perm_simp_grants)
+        print(f'{cur.rowcount} licenses imported into `mpce.permission_simple_grant`.')
+        self.conn.commit()
+
+        updated_edition_data = []
+        for row in perm_simp['Editions'].iter_rows(min_row=2, max_row=1768, max_col=30, values_only=True):
+            code, status, type, _, full_title, short_title = row[:6]
+            trans_title, trans_lang, lang, imprint_pub = row[6:10]
+            act_pub, _, imp_place, act_place, _, stated_yrs = row[10:16]
+            act_yrs, pg, quick_pg, vols, sec, ed, sheets = row[16:23]
+            _, _, _, _, notes, research_notes, url = row[23:30]
+
+            updated_edition_data.append((
+                code, status, type, full_title, short_title,
+                trans_title, trans_lang, lang, imprint_pub,
+                act_pub, imp_place, act_place, stated_yrs,
+                act_yrs, pg, quick_pg, vols, sec, ed, sheets,
+                notes, research_notes, url
+            ))
+        
+        cur.executemany("""
+            INSERT INTO mpce.edition (
+                edition_code, edition_status, edition_type,
+                full_book_title, short_book_titles,
+                translated_title, translated_language,
+                languages, imprint_publishers,
+                actual_publishers, imprint_publication_places,
+                actual_publication_places, imprint_publication_years, 
+                actual_publication_years, pages,
+                quick_pages, number_of_volumes, section,
+                edition, book_sheets, notes, research_notes,
+                url
+            )
+            VALUES(
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s
+            )
+            ON DUPLICATE KEY UPDATE
+                edition_status = VALUES(edition_status),
+                edition_type = VALUES(edition_type),
+                full_book_title = VALUES(full_book_title),
+                short_book_titles = VALUES(short_book_titles),
+                translated_title = VALUES(translated_title),
+                translated_language = VALUES(translated_language),
+                languages = VALUES(languages),
+                imprint_publishers = VALUES(imprint_publishers),
+                actual_publishers = VALUES(actual_publishers),
+                imprint_publication_places = VALUES(imprint_publication_places),
+                actual_publication_places = VALUES(actual_publication_places),
+                pages = VALUES(pages),
+                quick_pages = VALUES(quick_pages),
+                number_of_volumes = VALUES(number_of_volumes),
+                section = VALUES(section),
+                edition = VALUES(edition),
+                book_sheets = VALUES(book_sheets),
+                notes = VALUES(notes),
+                research_notes = VALUES(research_notes),
+                url = VALUES(url)
+        """, seq_params=updated_edition_data)
+        print(f'{cur.rowcount} editions added or updated from permission simple spreadsheet.')
+        self.conn.commit()
 
         # Import condemnations
         # with path('mpcereform.spreadsheets', 'condemnations.xlsx') as pth:

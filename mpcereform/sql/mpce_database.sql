@@ -58,7 +58,7 @@ keywords in the FBTEE system.
 
 */
 
-CREATE TABLE IF NOT EXISTS work ( -- From manuscript_books [super_books in original STN db]
+CREATE TABLE IF NOT EXISTS `work` ( -- From manuscript_books [super_books in original STN db]
 	/*
 	This is the new version of the `super_books` table. Both the table and the key
 	column have been renamed 'work'.
@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS work ( -- From manuscript_books [super_books in origi
 	PRIMARY KEY (`work_code`)
 );
 
-CREATE TABLE IF NOT EXISTS edition ( -- From manuscript_books_editions [books in original STN db]
+CREATE TABLE IF NOT EXISTS `edition` ( -- From manuscript_books_editions [books in original STN db]
 	/*
 	This is the new version of the `books` table. It has been renamed `edition`.
 	The data type of `edition_code` is now CHAR(12), a change from CHAR(9) in the
@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS edition ( -- From manuscript_books_editions [books in
 	`known_pirated` BIT DEFAULT 0,
 	`notes` VARCHAR(4000),
 	`research_notes` VARCHAR(1000),
+	`url` VARCHAR(1000),
 	PRIMARY KEY (`edition_code`)
 );
 
@@ -683,16 +684,15 @@ CREATE TABLE IF NOT EXISTS `provincial_inspection` ( -- from Excel spreadsheet
 
 CREATE TABLE IF NOT EXISTS `permission_simple_grant` ( -- from Excel spreadsheet
 	`ID` INT NOT NULL AUTO_INCREMENT,
-	`dawson_number` INT,
-	`edition_code` CHAR(12), -- !FK: edition.edition_code
-	`stated_publisher` VARCHAR(255),
-	`stated_publisher_profession` VARCHAR(255),
-	`publisher_agent_code` CHAR(8), -- !FK: person.agent_code
-	`publisher_entity_code` INT, -- !FK: corporate_entity.entity_code
-	`stated_place_of_publication` VARCHAR(255),
-	`actual_place_of_publication` CHAR(5), -- !FK: place.place_code
+	`dawson_work` INT,
+	`dawson_edition` INT,
 	`date_granted` DATE,
-	`notes` TEXT,
+	`edition_code` CHAR(12),
+	`licensee` CHAR(8),
+	`licensed_copies` INT,
+	`printed_copies_estimate` INT,
+	`work_confirmed` ENUM('yes', 'no', 'probable'),
+	`edition_confirmed` ENUM('yes', 'no', 'probable'),
 	PRIMARY KEY (`ID`)
 );
 
