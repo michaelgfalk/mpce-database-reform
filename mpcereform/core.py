@@ -552,11 +552,11 @@ class LocalDB():
             'mpce.consignment_handling_agent', consignments['Confiscations master'], cur, 17, 18)
 
         # TO DO: Import permission simple
-        # with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as pth:
-        #     perm_simp = load_workbook(pth, read_only=True, keep_vba=False)
+        with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as pth:
+            perm_simp = load_workbook(pth, read_only=True, keep_vba=False)
         
-        # for row in perm_simp['main sheet'].iter_rows(min_row=2, values_only=True):
-        #     continue
+        for row in perm_simp['main sheet'].iter_rows(min_row=2, values_only=True):
+            continue
 
         # Import condemnations
         # with path('mpcereform.spreadsheets', 'condemnations.xlsx') as pth:
@@ -775,13 +775,14 @@ class LocalDB():
                 prof_codes VARCHAR(255),
                 place_codes VARCHAR(255),
                 gender VARCHAR(255),
+                title VARCHAR(255),
                 notes TEXT,
                 corporate BIT(1)
             )
         """)
         print('Scanning STN clients ...')
         cur.execute("""
-            INSERT IGNORE INTO mpce.all_clients (
+            INSERT INTO mpce.all_clients (
                 client_code, name, gender, corporate, notes
             )
             SELECT client_code, client_name, gender, partnership, notes
@@ -789,22 +790,24 @@ class LocalDB():
         """)
         print('Scanning `manuscripts.manuscript_dealers`...')
         cur.execute("""
-            INSERT IGNORE INTO mpce.all_clients (
+            INSERT INTO mpce.all_clients (
                 client_code, name, alt_name, prof_codes, place_codes, notes
             )
             SELECT
                 Client_Code, Dealer_Name, Alternative_Name, Profession_Code,
                 Place_Code, Notes
             FROM manuscripts.manuscript_dealers
+            ON DUPLICATE KEY UPDATE mpce.all_clients.notes = CONCAT(IFNULL(mpce.all_clients.notes, ''), ' Stock Sales Notes: ', manuscripts.manuscript_dealers.notes)
         """)
         print('Scanning `manuscripts.manuscript_agents_inspectors`...')
         cur.execute("""
-            INSERT IGNORE INTO mpce.all_clients (
+            INSERT INTO mpce.all_clients (
                 client_code, name, place_codes, notes
             )
             SELECT
                 Client_Code, Agent_Name, Place_Code, Notes
             FROM manuscripts.manuscript_agents_inspectors
+            ON DUPLICATE KEY UPDATE mpce.all_clients.notes = CONCAT(IFNULL(mpce.all_clients.notes, ''), ' Estampillage Notes: ', manuscripts.manuscript_agents_inspectors.notes)
         """)
         
         # New clients in consignments workbook
@@ -815,29 +818,39 @@ class LocalDB():
         for row in consignments['People final'].iter_rows(min_row=2, values_only=True):
             if type(row[3]) != str or type(row[2]) != str:
                 continue
+            
+            # Split codes and names for multi-person cells
             codes = row[3].split(';')
             names = row[2].split(';')
+            
+            # Get other data (these columns are never split)
+            notes = row[4]
+            title = row[5]
+            place = row[7]
+            
             for code, name in zip(codes, names): # zip() deals with different-length sequences
                 if code not in consignment_clients:
-                    consignment_clients[code] = (code, name, row[7])
+                    consignment_clients[code] = (code, name, notes, title, place)
         cur.executemany("""
-            INSERT IGNORE INTO mpce.all_clients (
-                client_code, name, place_codes
+            INSERT INTO mpce.all_clients (
+                client_code, name, notes, title, place_codes
             )
-            VALUES (%s, %s, %s)
-        """, [(code, name, place) for _, (code, name, place) in consignment_clients.items()])
+            VALUES (%s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE mpce.all_clients.notes = CONCAT(IFNULL(mpce.all_clients.notes, ''), ' Confiscations notes: ', VALUES(notes))
+        """, seq_params = consignment_clients.values())
         
         # New clients in permission simple
         with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as p:
             print(f'Scanning {p} ...')
             per_simp = load_workbook(p, read_only=True, keep_vba=False)
         cur.executemany("""
-            INSERT IGNORE INTO mpce.all_clients (
+            INSERT INTO mpce.all_clients (
                 client_code, name, alt_name, gender, prof_codes, place_codes, notes
             )
             VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE mpce.all_clients.notes = CONCAT(IFNULL(mpce.all_clients.notes, ''), ' Permission simple notes: ', VALUES(notes))
         """, [(r[0], r[1], r[2], r[3], r[5], r[7], r[8]) 
-              for r in per_simp['Clients'].iter_rows(min_row=2, values_only=True)])
+              for r in per_simp['Clients'].iter_rows(min_row=2, max_row=249, values_only=True)])
         self.conn.commit()
         cur.execute('SELECT COUNT(client_code) FROM mpce.all_clients')
         print(f'{cur.fetchone()[0]} clients found across all datasets.')
@@ -865,7 +878,7 @@ class LocalDB():
             SELECT
                 ac.client_code, ac.name, ac.alt_name,
                 ac.prof_codes, ac.place_codes, ac.gender,
-                ac.notes, ac.corporate
+                ac.notes, ac.corporate, ac.title
             FROM mpce.all_clients AS ac
                 LEFT JOIN mpce.client_agent AS ca
                     ON ac.client_code = ca.client_code
@@ -889,7 +902,7 @@ class LocalDB():
         new_place_assigns = []
         for client, agent_code in zip(new_agents, code_list):
             _, name, alt_names, prof_codes = client[0:4]
-            place_codes, gender, notes, corporate = client[4:8]
+            place_codes, gender, notes, corporate, title = client[4:9]
 
             # Process gender
             if gender is not None:
@@ -913,15 +926,15 @@ class LocalDB():
             
             # Add processed agent to list
             processed_agents.append(
-                (agent_code, name, alt_names, gender, notes, corporate)
+                (agent_code, name, alt_names, gender, notes, corporate, title)
             )
 
         # Generate new agents
         cur.executemany("""
-            INSERT IGNORE INTO mpce.agent (
-                agent_code, name, other_names, sex, notes, corporate_entity
+            INSERT INTO mpce.agent (
+                agent_code, name, other_names, sex, notes, corporate_entity, title
             )
-            VALUES (%s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
         """, seq_params = processed_agents)
         print(f'{cur.rowcount} new agents added to `mpce.agent`.')
         self.conn.commit()
@@ -956,7 +969,18 @@ class LocalDB():
             INSERT IGNORE INTO mpce.agent_profession
             VALUES (%s, %s)
         """, seq_params=new_prof_assigns)
-        
+        print(f'{cur.rowcount} new professions assigned to agents')
+        self.conn.commit()
+
+        # Update notes:
+        cur.execute("""
+            UPDATE mpce.agent AS a, mpce.all_clients AS ac, mpce.client_agent AS ca
+            SET a.notes = TRIM(CONCAT(IFNULL(a.notes, ''), ' ', ac.notes))
+            WHERE a.agent_code = ca.agent_code AND ca.client_code = ac.client_code
+        """)
+        print(f'Notes concatenated from different datasets for {cur.rowcount} agents.')
+        self.conn.commit()
+
         # Use temporary join table to replace client codes throughout db:
         cur.execute("""
             UPDATE mpce.consignment AS tbl
@@ -970,7 +994,7 @@ class LocalDB():
         """)
         print('Client codes in `mpce.consignment` resolved into agent_codes.')
         
-        # Story all_collectors and all_censors as strings
+        # Store all_collectors and all_censors as strings
         cur.execute("""
             CREATE TEMPORARY TABLE all_collectors (
                 `consignment` INT,
