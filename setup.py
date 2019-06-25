@@ -8,7 +8,7 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name = 'mpceDatabaseReform',
-    version = '0.01dev',
+    version = '1.0',
     packages = find_namespace_packages(include = ['mpcereform.*']),
     author = "Michael Falk",
     description = "Reforms and repopulates the new MPCE database from the 'manuscripts' version.",

@@ -651,10 +651,12 @@ CREATE TABLE IF NOT EXISTS `bastille_register_record` ( -- From manuscript_title
 	
 CREATE TABLE IF NOT EXISTS `condemnation` (
 	`ID` INT NOT NULL AUTO_INCREMENT,
+	`folio` VARCHAR(255),
 	`title` VARCHAR(1000),
 	`work_code` CHAR(12), -- !FK: work.work_code
 	`edition_notes` CHAR(12),
-	`insitution` INT, -- !FK: corporate_entity.entity_code
+	`institution_text` VARCHAR(255),
+	`insitution` CHAR(8), -- !FK: agent_code
 	`date` DATE,
 	`judgment` INT, -- !FK: judgment.ID
 	`other_judgment` VARCHAR(255),
@@ -664,21 +666,31 @@ CREATE TABLE IF NOT EXISTS `condemnation` (
 
 CREATE TABLE IF NOT EXISTS `provincial_inspection` ( -- from Excel spreadsheet
 	`ID` INT NOT NULL AUTO_INCREMENT,
-	`date` DATE,
-	`inspected_in` CHAR(5), -- !FK: place.place_code
-	`title` VARCHAR(1000),
-	`work_code` CHAR(12), -- !FK: work.work_code
-	`author` VARCHAR(1000),
-	`origin` CHAR(5), -- !FK: place.place_code
-	`number_inspected` INT,
-	`units` INT, -- !FK: unit.ID
-	`aquit_a_caution` BIT,
-	`judgment` INT, -- !FK: judgment.ID
-	`other_judgment` VARCHAR(255),
-	`judgment_date` DATE,
-	`tracking_number` VARCHAR(255),
+	`ms_ref` VARCHAR(255),
 	`folio` VARCHAR(255),
-	`item_number` INT,
+	`edition_code` CHAR(12), -- !FK: code of the inspected edition
+	`work_code` CHAR(12), -- !FK: work_code if edition_code unavailable
+	`inspected_in` CHAR(5), -- !FK: code of the inspected edition
+	`item` INT,
+	`inspected_on` DATE,
+	`ballot` VARCHAR(255),
+	`consignment` VARCHAR(255),
+	`acquit_a_caution` VARCHAR(255),
+	`origin` CHAR(5), -- !FK: code of the inspected edition
+	`author` TEXT,
+	`title` TEXT,
+	`imprint_place` TEXT,
+	`imprint_publisher` TEXT,
+	`imprint_date` CHAR(4),
+	`volumes` VARCHAR(255),
+	`format` VARCHAR(255),
+	`languages` VARCHAR(255),
+	`addressee` VARCHAR(255),
+	`num_copies` INT,
+	`inspected_by` TEXT,
+	`decision` VARCHAR(255),
+	`decision_date` DATE,
+	`notes` TEXT,
 	PRIMARY KEY(`ID`)
 );
 

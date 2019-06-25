@@ -551,7 +551,7 @@ class LocalDB():
         self._import_spreadsheet_agents(
             'mpce.consignment_handling_agent', consignments['Confiscations master'], cur, 17, 18)
 
-        # TO DO: Import permission simple
+        # Import permission simple
         with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as pth:
             perm_simp = load_workbook(pth, read_only=True, keep_vba=False)
             print(f'Importing permission simple data from {pth} ...')
@@ -640,11 +640,21 @@ class LocalDB():
         self.conn.commit()
 
         # Import condemnations
-        # with path('mpcereform.spreadsheets', 'condemnations.xlsx') as pth:
-        #     comdemn = load_workbook(pth, read_only=True, keep_vba=False)
+        with path('mpcereform.spreadsheets', 'condemnations.xlsx') as pth:
+            comdemn = load_workbook(pth, read_only=True, keep_vba=False)
+            print(f'Importing condemnation data from {pth} ...')
 
-        # for row in comdemn['XXXXX'].iter_rows(min_row=2, values_only=True):
-        #     continue
+        condemn_data = [row for row in comdemn['Sheet1'].iter_rows(
+            min_row=2, max_row=114, max_col=6, values_only=True)]
+        
+        cur.executemany("""
+            INSERT INTO mpce.condemnation (
+                folio, title, notes, institution_text, date, other_judgment
+            )
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, seq_params=condemn_data)
+        print(f'{cur.rowcount} condemnations inserted into `mpce.condemnation`.')
+        self.conn.commit()
 
         # Import Darnton sample
         with path('mpcereform.spreadsheets', 'CommandesLibrairesfrancais.xlsx') as pth:
@@ -677,12 +687,81 @@ class LocalDB():
         print(f'{cur.rowcount} book orders imported into `mpce.stn_darnton_sample_order`.')
 
         # Import provincial inspections
-        # with path('mpcereform.spreadsheets', 'provincial_inspections.xlsx') as pth:
-        #     perm_simp = load_workbook(pth, read_only=True, keep_vba=False)
+        with path('mpcereform.spreadsheets', 'provincial_inspections.xlsx') as pth:
+            prov_insp = load_workbook(pth, read_only=True, keep_vba=False)
+            print(f'Importing provincial inspectsion from {pth} ...')
 
-        # for row in perm_simp['Editions and Addresses'].iter_rows(min_row=2, values_only=True):
-        #     continue
-
+        inspection_data = [row for row in prov_insp['Amalgamated sheet'].iter_rows(
+            min_row=2, max_row=230, max_col=23, values_only=True)]
+        
+        cur.execute("""
+            CREATE TEMPORARY TABLE mpce.prov_insp_temp (
+                `ID` INT NOT NULL AUTO_INCREMENT,
+                `ms_ref` VARCHAR(255),
+                `folio` VARCHAR(255),
+                `inspected_in` VARCHAR(255),
+                `item` INT,
+                `inspected_on` DATE,
+                `ballot` VARCHAR(255),
+                `consignment` VARCHAR(255),
+                `acquit_a_caution` VARCHAR(255),
+                `origin` VARCHAR(255),
+                `author` TEXT,
+                `title` TEXT,
+                `imprint_place` TEXT,
+                `imprint_publisher` TEXT,
+                `imprint_date` CHAR(4),
+                `volumes` VARCHAR(255),
+                `format` VARCHAR(255),
+                `languages` VARCHAR(255),
+                `addressee` VARCHAR(255),
+                `num_copies` INT,
+                `inspected_by` TEXT,
+                `decision` VARCHAR(255),
+                `decision_date` DATE,
+                `notes` TEXT,
+                PRIMARY KEY(`ID`)
+            )
+        """)
+        cur.executemany("""
+            INSERT INTO prov_insp_temp (
+                ms_ref, folio, inspected_in, item, inspected_on, ballot,
+                consignment, acquit_a_caution, origin, author,
+                title, imprint_place, imprint_publisher,
+                imprint_date, volumes, format, languages, addressee,
+                num_copies, inspected_by, decision, decision_date,
+                notes
+            )
+            VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s
+            )
+        """, seq_params = inspection_data)
+        cur.execute("""
+            INSERT INTO provincial_inspection (
+                ID, ms_ref, folio, inspected_in, item,
+                inspected_on, ballot, consignment, acquit_a_caution,
+                origin, author, title, imprint_place,
+                imprint_publisher, imprint_date, volumes,
+                format, languages, addressee, num_copies,
+                inspected_by, decision, decision_date, notes
+            )
+            SELECT
+                tmp.ID, tmp.ms_ref, tmp.folio, insp_pl.place_code, tmp.item,
+                tmp.inspected_on, tmp.ballot, tmp.consignment,
+                tmp.acquit_a_caution, or_pl.place_code, tmp.author,
+                tmp.title, tmp.imprint_place, tmp.imprint_publisher,
+                tmp.imprint_date, tmp.volumes, tmp.format, tmp.languages,
+                tmp.addressee, tmp.num_copies, tmp.inspected_by,
+                tmp.decision, tmp.decision_date, tmp.notes
+            FROM prov_insp_temp AS tmp
+                LEFT JOIN mpce.place AS insp_pl
+                    ON tmp.inspected_in = insp_pl.name
+                LEFT JOIN mpce.place AS or_pl
+                    ON tmp.origin = or_pl.name
+        """)
+        print(f'{cur.rowcount} events imported into `mpce.provincial_inspections`.')
 
         # Finish
         cur.close()
@@ -1345,8 +1424,8 @@ class LocalDB():
         events['sequestered in the Bastille'] = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM mpce.condemnation")
         events['condemned by the authorities'] = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM mpce.confiscation")
-        events['confiscated by French customs'] = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM mpce.consignment")
+        events['arrived in a suspect consignment at Paris customs'] = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM mpce.parisian_stock_sale")
         events['sold at the Paris stock sales, or the right to print them'] = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM mpce.permission_simple_grant")
@@ -1360,6 +1439,8 @@ class LocalDB():
             'bought, sold, sent, returned, printed, warehoused or otherwise\n'
             '         dealt with by the Société Typographique de Neuchâtel'
         )] = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM mpce.stn_darnton_sample_order")
+        events['were ordered by one of Robert Darnton\'s selected buyers'] = cur.fetchone()[0]
 
         print(f'Which were involved in\n')
         print(f'     {sum(events.values())} distinct events\n')
