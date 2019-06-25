@@ -559,12 +559,13 @@ class LocalDB():
         perm_simp_grants = []
         for row in perm_simp['Licences'].iter_rows(min_row=2, max_row=1768, max_col=14, values_only=True):
             daw_wk, daw_ed, date, ed, _, _ = row[:6]
-            licensee, _, _, _, l_cop, p_cop, spbk, ed = row[6:14]
+            licensee, _, _, _, l_cop, p_cop, spbk_conf, ed_conf = row[6:14]
             
             date = parse_date(date)
 
             perm_simp_grants.append(
-                (daw_wk, daw_ed, date, ed, licensee, l_cop, p_cop, spbk, ed)
+                (daw_wk, daw_ed, date, ed, licensee,
+                 l_cop, p_cop, spbk_conf, ed_conf)
             )
 
         cur.executemany("""
@@ -909,6 +910,7 @@ class LocalDB():
             place = row[7]
             
             for code, name in zip(codes, names): # zip() deals with different-length sequences
+                code = code.strip()
                 if code not in consignment_clients:
                     consignment_clients[code] = (code, name, notes, title, place)
         cur.executemany("""
@@ -940,12 +942,19 @@ class LocalDB():
         # Create temporary client_agent table from stn_client_agent
         # Remember to exclude partnerships--these relationships will go in the
         # 'is_member_of' table
+        print('Converting clients to agents ...')
         cur.execute("""
             CREATE TEMPORARY TABLE mpce.client_agent (
                 `client_code` CHAR(6) NOT NULL,
                 `agent_code` CHAR(8) NOT NULL,
                 PRIMARY KEY (`client_code`, `agent_code`)
             )
+        """)
+
+        # Get existing client-person data
+        print('Scanning mpce.stn_client_agent ...')
+        cur.execute("""
+            INSERT INTO mpce.client_agent
             SELECT sca.client_code, sca.agent_code
             FROM mpce.stn_client_agent AS sca
                 LEFT JOIN mpce.stn_client AS sc
@@ -953,7 +962,46 @@ class LocalDB():
             WHERE sc.partnership IS FALSE
         """)
 
+        # Import new agents from `clients_without_person_codes.xlsx`
+        with path('mpcereform.spreadsheets', 'clients_without_person_codes.xlsx') as pth:
+            print(f'Creating new agents according from data in {pth} ...')
+            new_stn_clients = load_workbook(
+                pth, read_only=True, keep_vba=False)
+
+        new_cl_ls = []
+        for row in new_stn_clients['clients_without_person_codes'].iter_rows(min_row=2, values_only=True):
+            client_code = row[0]
+            client_name = row[1]
+            if row[2] == 'Y': 
+                corporate = False
+            elif row[3] == 'Y':
+                corporate = True
+            else:
+                continue
+            notes = row[4]
+            new_cl_ls.append((client_code, client_name, corporate, notes))
+        new_cl_agts = self._get_code_sequence(
+            'mpce.agent', 'agent_code', len(new_cl_ls), cur)
+
+        cur.executemany("""
+            INSERT INTO mpce.agent (agent_code, name, corporate_entity, notes)
+            VALUES (%s, %s, %s, %s)
+        """, seq_params=[(code, name, corp, notes) for code, (client, name, corp, notes) in zip(new_cl_agts, new_cl_ls)])
+        print(f'{cur.rowcount} new agents created.')
+        cur.executemany("""
+            INSERT INTO mpce.stn_client_agent (client_code, agent_code)
+            VALUES (%s, %s)
+        """, seq_params=[(client, code) for code, (client, name, corp, notes) in zip(new_cl_agts, new_cl_ls)])
+        print(f'{cur.rowcount} new relationships inserted into `stn_client_agent`')
+        cur.executemany("""
+            INSERT INTO mpce.client_agent (client_code, agent_code)
+            VALUES (%s, %s)
+        """, seq_params=[(client, code) for code, (client, name, corp, notes) in zip(new_cl_agts, new_cl_ls)])
+        self.conn.commit()
+
         # Generate new agent codes
+        # The XOR allows the creation of new agent_codes for clients
+        # that are linked to an agent of a different type to themselves. 
         cur.execute("""
             SELECT
                 ac.client_code, ac.name, ac.alt_name,
@@ -962,8 +1010,13 @@ class LocalDB():
             FROM mpce.all_clients AS ac
                 LEFT JOIN mpce.client_agent AS ca
                     ON ac.client_code = ca.client_code
+                LEFT JOIN mpce.agent AS a
+                    ON ca.agent_code = a.agent_code
             WHERE 
-                (ca.agent_code IS NULL or ac.corporate IS TRUE)
+                (
+                    ca.agent_code IS NULL OR
+                    (ac.corporate XOR a.corporate_entity)
+                )
                 AND ac.name NOT LIKE 'null'
         """)
         new_agents = cur.fetchall()
@@ -975,6 +1028,7 @@ class LocalDB():
             INSERT INTO mpce.client_agent (client_code, agent_code)
             VALUES (%s, %s)
         """, seq_params=[(client[0], code) for client, code in zip(new_agents, code_list)])
+        
         
         # Process new_agent data:
         processed_agents = []
@@ -1006,15 +1060,15 @@ class LocalDB():
             
             # Add processed agent to list
             processed_agents.append(
-                (agent_code, name, alt_names, gender, notes, corporate, title)
+                (agent_code, name, alt_names, gender, corporate, title)
             )
 
         # Generate new agents
         cur.executemany("""
             INSERT INTO mpce.agent (
-                agent_code, name, other_names, sex, notes, corporate_entity, title
+                agent_code, name, other_names, sex, corporate_entity, title
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s)
         """, seq_params = processed_agents)
         print(f'{cur.rowcount} new agents added to `mpce.agent`.')
         self.conn.commit()
@@ -1067,12 +1121,14 @@ class LocalDB():
             LEFT JOIN mpce.client_agent AS ca ON tbl.other_stakeholder = ca.client_code
             SET tbl.other_stakeholder = ca.agent_code
         """)
+        print(
+            f'{cur.rowcount} other_stakeholders in `mpce.consignment` resolved into agent_codes.')
         cur.execute("""
             UPDATE mpce.consignment AS tbl
             LEFT JOIN mpce.client_agent AS ca ON tbl.returned_to_agent = ca.client_code
             SET tbl.returned_to_agent = ca.agent_code
         """)
-        print('Client codes in `mpce.consignment` resolved into agent_codes.')
+        print(f'{cur.rowcount} returned_to_agents in `mpce.consignment` resolved into agent_codes.')
         
         # Store all_collectors and all_censors as strings
         cur.execute("""
@@ -1139,19 +1195,19 @@ class LocalDB():
             LEFT JOIN mpce.client_agent AS ca ON tbl.agent_code = ca.client_code
             SET tbl.agent_code = ca.agent_code
         """)
-        print('Client codes in `mpce.consignment_addressee` resolved into agent_codes.')
+        print(f'{cur.rowcount} client codes in `mpce.consignment_addressee` resolved into agent_codes.')
         cur.execute("""
             UPDATE mpce.consignment_signatory AS tbl
             LEFT JOIN mpce.client_agent AS ca ON tbl.agent_code = ca.client_code
             SET tbl.agent_code = ca.agent_code
         """)
-        print('Client codes in `mpce.consignment_signatory` resolved into agent_codes.')
+        print(f'{cur.rowcount} client codes in `mpce.consignment_signatory` resolved into agent_codes.')
         cur.execute("""
             UPDATE mpce.consignment_handling_agent AS tbl
             LEFT JOIN mpce.client_agent AS ca ON tbl.agent_code = ca.client_code
             SET tbl.agent_code = ca.agent_code
         """)
-        print('Client codes in `mpce.consignment_handling_agent` resolved into agent_codes.')
+        print(f'{cur.rowcount} client codes in `mpce.consignment_handling_agent` resolved into agent_codes.')
         
         cur.execute("""
             UPDATE mpce.stamping AS tbl
@@ -1168,73 +1224,51 @@ class LocalDB():
             LEFT JOIN mpce.client_agent AS ca ON tbl.attending_adjoint = ca.client_code
             SET tbl.attending_adjoint = ca.agent_code
         """)
-        print('Client codes in `mpce.stamping` resolved into agent_codes.')
+        print(f'{cur.rowcount} client codes in `mpce.stamping` resolved into agent_codes.')
         
         cur.execute("""
             UPDATE mpce.parisian_stock_auction AS tbl
             LEFT JOIN mpce.client_agent AS ca ON tbl.previous_owner = ca.client_code
             SET tbl.previous_owner = ca.agent_code
         """)
-        print('Client codes in `mpce.parisian_stock_auction` resolved into agent_codes.')
+        print(f'{cur.rowcount} client codes in `mpce.parisian_stock_auction` resolved into agent_codes.')
         cur.execute("""
             UPDATE mpce.auction_administrator AS tbl
             LEFT JOIN mpce.client_agent AS ca ON tbl.administrator_id = ca.client_code
             SET tbl.administrator_id = ca.agent_code
         """)
-        print('Client codes in `mpce.auction_administrator` resolved into agent_codes.')
+        print(f'{cur.rowcount} client codes in `mpce.auction_administrator` resolved into agent_codes.')
         cur.execute("""
             UPDATE mpce.parisian_stock_sale AS tbl
             LEFT JOIN mpce.client_agent AS ca ON tbl.purchaser = ca.client_code
             SET tbl.purchaser = ca.agent_code
         """)
-        print('Client codes in `mpce.parisian_stock_sale` resolved into agent_codes.')
+        print(f'{cur.rowcount} client codes in `mpce.parisian_stock_sale` resolved into agent_codes.')
+        self.conn.commit()
+        cur.execute("""
+            UPDATE mpce.permission_simple_grant AS tbl
+            LEFT JOIN mpce.client_agent AS ca ON tbl.licensee = ca.client_code
+            SET tbl.licensee = ca.agent_code
+        """)
+        print(f'{cur.rowcount} client codes in `mpce.permission_simple_grant` resolved into agent_codes.')
         self.conn.commit()
 
         # Populate 'is member of' from stn data
         cur.execute("""
             INSERT INTO mpce.is_member_of (member, corporate_entity)
-            SELECT
-                sca.agent_code AS member_agent_code,
-                tca.agent_code AS entity_agent_code
+            SELECT sca.agent_code, ca.agent_code
             FROM mpce.stn_client_agent AS sca
-                LEFT JOIN mpce.stn_client AS sc
-                    ON sc.client_code = sca.client_code
-                LEFT JOIN mpce.client_agent AS tca
-                    ON tca.client_code = sca.client_code
-            WHERE sc.partnership IS TRUE
+            LEFT JOIN mpce.client_agent AS ca
+                ON sca.client_code = ca.client_code
+            LEFT JOIN mpce.stn_client AS cl_orig
+                ON sca.client_code = cl_orig.client_code
+            LEFT JOIN mpce.agent AS a
+                ON sca.agent_code = a.agent_code
+            WHERE
+                cl_orig.partnership IS TRUE AND
+                a.corporate_entity IS NOT TRUE
         """)
         print(f'{cur.rowcount} memberships of corporate entities imported from STN data.')
-        self.conn.commit()
-
-        # Import new agents from `clients_without_person_codes.xlsx`
-        with path('mpcereform.spreadsheets', 'clients_without_person_codes.xlsx') as pth:
-            print(f'Creating new agents according from data in {pth} ...')
-            new_stn_clients = load_workbook(pth, read_only=True, keep_vba=False)
-
-        new_cl_ls = []
-        for row in new_stn_clients['clients_without_person_codes'].iter_rows(min_row=2, values_only=True):
-            client_code = row[0]
-            client_name = row[1]
-            if row[2] == 'Y':
-                corporate = False
-            elif row[3] == 'Y':
-                corporate = True
-            else:
-                continue
-            notes = row[4]
-            new_cl_ls.append((client_code, client_name, corporate, notes))
-        new_cl_agts = self._get_code_sequence('mpce.agent', 'agent_code', len(new_cl_ls), cur)
-
-        cur.executemany("""
-            INSERT INTO agent (agent_code, name, corporate_entity, notes)
-            VALUES (%s, %s, %s, %s)
-        """, seq_params=[(code, name, corp, notes) for code, (client, name, corp, notes) in zip(new_cl_agts, new_cl_ls)])
-        print(f'{cur.rowcount} new agents created.')
-        cur.executemany("""
-            INSERT INTO stn_client_agent (client_code, agent_code)
-            VALUES (%s, %s)
-        """, seq_params=[(client, code) for code, (client, name, corp, notes) in zip(new_cl_agts, new_cl_ls)])
-        print(f'{cur.rowcount} new relationships inserted into `stn_client_agent`')
         self.conn.commit()
 
         # Finish
