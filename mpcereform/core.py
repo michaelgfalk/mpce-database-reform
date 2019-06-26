@@ -218,7 +218,7 @@ class LocalDB():
                     ON k2.keyword = ka.association
         """)
         self.conn.commit()
-        print('Keyword associations imported.')
+        print(f'{cur.rowcount} keyword associations imported.')
 
         # Close cursor
         cur.close()
@@ -229,7 +229,7 @@ class LocalDB():
         # Open cursor
         cur = self.conn.cursor()
 
-        print(f'Importing editions from `manuscript_books_editions`...')
+        print(f'Importing editions from `manuscripts.manuscript_books_editions`...')
         cur.execute("""
             INSERT INTO mpce.edition (
                 edition_code, work_code, edition_status, edition_type,
@@ -251,7 +251,7 @@ class LocalDB():
                 edition, book_sheets, notes, research_notes
             FROM manuscripts.manuscript_books_editions
         """)
-        print(f'{cur.rowcount} editions imported into `edition`.')
+        print(f'{cur.rowcount} editions imported into `mpce.edition`.')
         self.conn.commit()
         cur.close()
 
@@ -377,7 +377,7 @@ class LocalDB():
             )
             SELECT
                 UUID, illegal_super_book_code, illegal_full_book_title, illegal_author_name,
-                illegal_date, illegal_folio, illegal_notes
+                CONCAT(illegal_date, '-00-00'), illegal_folio, illegal_notes
             FROM manuscripts.manuscript_titles_illegal
             WHERE
                 record_status <> 'DELETED' AND
@@ -396,10 +396,11 @@ class LocalDB():
                 category, notes
             )
             SELECT i.UUID, i.illegal_super_book_code, i.illegal_full_book_title, 
-                i.illegal_author_name, i.bastille_imprint_full, i.illegal_date, 
+                i.illegal_author_name, i.bastille_imprint_full, CONCAT(i.illegal_date, '-00-00'), 
                 i.bastille_copies_number, i.bastille_current_volumes, i.bastille_total_volumes,
                 i.bastille_book_category, i.illegal_notes
             FROM manuscripts.manuscript_titles_illegal AS i
+            WHERE CHAR_LENGTH(bastille_book_category) > 1
         """)
         print(f'{cur.rowcount} bastille register records added to `mpce.bastille_register_record`.')
         self.conn.commit()
@@ -577,7 +578,7 @@ class LocalDB():
             )
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, seq_params=perm_simp_grants)
-        print(f'{cur.rowcount} licenses imported into `mpce.permission_simple_grant`.')
+        print(f'{cur.rowcount} licences imported into `mpce.permission_simple_grant`.')
         self.conn.commit()
 
         updated_edition_data = []
@@ -672,6 +673,13 @@ class LocalDB():
             if ordered_by in self.DARNTON_CLIENTS:
                 ordered_by = self.DARNTON_CLIENTS[ordered_by]
 
+            # Reformat date
+            date = date.replace('?', '0')
+            day = date[0:2]
+            month = date[3:5]
+            year = date[6:10]
+            date = year + '-' + month + '-' + day
+
             darnton_data.append(
                 (ID, title, format, volumes, author, num, date,
                 long_title, ordered_by, notes)
@@ -689,7 +697,7 @@ class LocalDB():
         # Import provincial inspections
         with path('mpcereform.spreadsheets', 'provincial_inspections.xlsx') as pth:
             prov_insp = load_workbook(pth, read_only=True, keep_vba=False)
-            print(f'Importing provincial inspectsion from {pth} ...')
+            print(f'Importing provincial inspections from {pth} ...')
 
         inspection_data = [row for row in prov_insp['Amalgamated sheet'].iter_rows(
             min_row=2, max_row=230, max_col=23, values_only=True)]
@@ -1440,9 +1448,9 @@ class LocalDB():
             '         dealt with by the Société Typographique de Neuchâtel'
         )] = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM mpce.stn_darnton_sample_order")
-        events['were ordered by one of Robert Darnton\'s selected buyers'] = cur.fetchone()[0]
+        events['ordered by one of Robert Darnton\'s selected buyers'] = cur.fetchone()[0]
 
-        print(f'Which were involved in\n')
+        print(f'All of which were involved in\n')
         print(f'     {sum(events.values())} distinct events\n')
         print(f'in the history of the book, including...\n')
 

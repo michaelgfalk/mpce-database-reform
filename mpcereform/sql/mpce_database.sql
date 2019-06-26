@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS `work` ( -- From manuscript_books [super_books in ori
 	`categorisation_fuzzy_value` INT DEFAULT 0,
 	`categorisation_notes` TEXT,
 	PRIMARY KEY (`work_code`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `edition` ( -- From manuscript_books_editions [books in original STN db]
 	/*
@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS `edition` ( -- From manuscript_books_editions [books 
 	`research_notes` VARCHAR(1000),
 	`url` VARCHAR(1000),
 	PRIMARY KEY (`edition_code`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 -- Book classification tables
 
@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS parisian_category (
 	`ancestor2` CHAR(5),
 	`ancestor3` CHAR(5),
 	PRIMARY KEY (`parisian_category_code`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS keyword (
 	`keyword_code` CHAR(5) NOT NULL,
@@ -126,13 +126,13 @@ CREATE TABLE IF NOT EXISTS keyword (
 	`definition` VARCHAR(1000),
 	`tag_code` CHAR(3),
 	PRIMARY KEY (`keyword_code`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS keyword_fuzzy_values (
 	`fuzzy_value_code` INT NOT NULL,
 	`fuzzy_value` VARCHAR(50),
 	PRIMARY KEY (`fuzzy_value_code`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 INSERT INTO
 	`keyword_fuzzy_values`
 VALUES
@@ -149,13 +149,13 @@ CREATE TABLE IF NOT EXISTS tag (
 	`tag` VARCHAR(50),
 	`tag_definition` VARCHAR(1000),
 	PRIMARY KEY (`tag_code`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS work_keyword (
 	`work_code` CHAR(12),
 	`keyword_code` CHAR(5),
 	PRIMARY KEY (`work_code`,`keyword_code`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*
 Unfortunately these two association tables were created using the keyword
@@ -165,13 +165,13 @@ CREATE TABLE IF NOT EXISTS keyword_free_association (
 	keyword_1 CHAR(5),
 	keyword_2 CHAR(5),
 	PRIMARY KEY (`keyword_1`, `keyword_2`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS keyword_tree_association (
 	keyword_1 CHAR(5),
 	keyword_2 CHAR(5),
 	PRIMARY KEY (`keyword_1`, `keyword_2`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*
 
@@ -211,13 +211,13 @@ CREATE TABLE IF NOT EXISTS `agent` ( -- From `people`
 	`cerl_id` CHAR(11),
 	`corporate_entity` BIT(1),		-- Is this agent a corporate entity? y/n/NULL
 	PRIMARY KEY (`agent_code`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `is_member_of` ( -- New table
 	`member` CHAR(8) NOT NULL,				-- agent_code of the member
 	`corporate_entity` CHAR(8) NOT NULL,	-- agent_code of the agent they are a member of
 	PRIMARY KEY (`member`, `corporate_entity`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 -- Other types of person, and additional metadata
 
@@ -235,19 +235,19 @@ CREATE TABLE IF NOT EXISTS `stn_client` ( -- From clients
 	`last_date` DATE,
 	`notes` VARCHAR(4000),
 	PRIMARY KEY (`client_code`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_client_agent` ( -- From clients_people
 	`client_code` CHAR(6) NOT NULL,
 	`agent_code` CHAR(8) NOT NULL,
 	PRIMARY KEY (`client_code`, `agent_code`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_client_profession` ( -- From clients_professions
 	`client_code` CHAR(6) NOT NULL,
 	`profession_code` CHAR(6) NOT NULL,
 	PRIMARY KEY(`client_code`, `profession_code`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `profession` ( -- From professions
 	`profession_code` CHAR(5) NOT NULL,
@@ -256,13 +256,13 @@ CREATE TABLE IF NOT EXISTS `profession` ( -- From professions
 	`profession_group` VARCHAR(100),
 	`economic_sector` VARCHAR(100),
 	PRIMARY KEY(`profession_code`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `agent_profession` ( -- From people_professions
 	`agent_code` CHAR(8) NOT NULL,
 	`profession_code` CHAR(5) NOT NULL,
 	PRIMARY KEY (`agent_code`, `profession_code`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `edition_author` ( -- From manuscript_books_authors
 	`edition_code` CHAR(12) NOT NULL,
@@ -270,13 +270,13 @@ CREATE TABLE IF NOT EXISTS `edition_author` ( -- From manuscript_books_authors
 	`author_type` int NOT NULL,
 	`certain` bit(1),
 	PRIMARY KEY(`edition_code`, `author`, `author_type`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS author_type ( -- New table
 	`id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 	`type` VARCHAR(20),
 	`definition` TEXT
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 INSERT INTO `author_type` (`type`,`definition`)
 VALUES
 	("Primary","A person mainly responsible for the original content of the work."),
@@ -318,7 +318,7 @@ CREATE TABLE IF NOT EXISTS `place` ( -- From manuscript_places
 	`geoname` INT(11),
 	`notes` VARCHAR(1000),
 	PRIMARY KEY (`place_code`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `agent_address` ( -- From clients_addresses
 	`id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -327,7 +327,7 @@ CREATE TABLE IF NOT EXISTS `agent_address` ( -- From clients_addresses
 	`address` VARCHAR(50),
 	`from_date` DATE,
 	`to_date` DATE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*
 
@@ -344,29 +344,29 @@ normalisation.
 
 CREATE TABLE IF NOT EXISTS `stn_edition_call_number` ( -- From books_call_numbers
   `edition_code` CHAR(9) NOT NULL, -- Formerly book_code
-  `call_number` VARCHAR(300) NOT NULL,
+  `call_number` VARCHAR(255) NOT NULL,
   PRIMARY KEY (`edition_code`,`call_number`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_edition_catalogue` ( -- From books_stn_catalogues
   `edition_code` CHAR(9) NOT NULL, -- Formerly book_code
-  `catalogue` VARCHAR(200) NOT NULL,
+  `catalogue` VARCHAR(255) NOT NULL,
   PRIMARY KEY (`edition_code`,`catalogue`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_client_correspondence_ms` ( -- From clients_correspondence_manuscripts
 	`client_code` CHAR(6) NOT NULL,
 	`position` INT NOT NULL,
 	`manuscript_numbers` VARCHAR(500),
 	PRIMARY KEY (`client_code`, `position`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_client_correspondence_place` ( -- From clients_correspondence_places
 	`client_code` CHAR(6) NOT NULL,
 	`place_code` CHAR(5) NOT NULL,
 	`from_date` DATE,
 	PRIMARY KEY(`client_code`, `place_code`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*
 
@@ -463,7 +463,7 @@ CREATE TABLE IF NOT EXISTS auction_role ( -- Currently only used for parisian_st
 	`ID` INT NOT NULL,
 	`role` VARCHAR(30),
 	PRIMARY KEY(`ID`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 INSERT INTO auction_role
 VALUES
 	(1, "Syndic"),
@@ -474,7 +474,7 @@ CREATE TABLE IF NOT EXISTS auction_reason ( -- Currently only used by parisian_s
 	`ID` INT NOT NULL,
 	`reason` VARCHAR(30),
 	PRIMARY KEY (`ID`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 INSERT INTO auction_reason
 VALUES
 	(1, "Bankruptcy"),
@@ -486,7 +486,7 @@ CREATE TABLE IF NOT EXISTS sale_type ( -- Currently only used by parisian_stock_
 	`ID` INT NOT NULL AUTO_INCREMENT,
 	`type` VARCHAR(50),
 	PRIMARY KEY (`ID`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 INSERT INTO sale_type
 VALUES
 	(1, "Stock Sale"),
@@ -496,7 +496,7 @@ CREATE TABLE IF NOT EXISTS transaction_direction( -- Currently only used by stn_
 	`ID` INT,
 	`name` VARCHAR(5),
 	PRIMARY KEY(`ID`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 INSERT INTO transaction_direction
 VALUES
 	(1,"In"),
@@ -558,7 +558,7 @@ CREATE TABLE IF NOT EXISTS `consignment_addressee` ( -- New table: owners/addres
 	`agent_code` CHAR(8), -- The ID of the owner/addressee
 	`text` VARCHAR(255), -- The name as it appears in the register
 	PRIMARY KEY (`ID`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `consignment_signatory` ( -- New table: persons who sign the customs register
 	`ID` INT NOT NULL AUTO_INCREMENT,
@@ -566,7 +566,7 @@ CREATE TABLE IF NOT EXISTS `consignment_signatory` ( -- New table: persons who s
 	`agent_code` CHAR(8), -- The ID of the customs register signatory
 	`text` VARCHAR(255), -- The name as it appears in the register
 	PRIMARY KEY (`ID`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `consignment_handling_agent` ( -- New table: handling agents of the consignment
 	`ID` INT NOT NULL AUTO_INCREMENT,
@@ -574,7 +574,7 @@ CREATE TABLE IF NOT EXISTS `consignment_handling_agent` ( -- New table: handling
 	`agent_code` CHAR(8), -- The ID of the handling agent
 	`text` VARCHAR(255), -- The name as it appears in the register
 	PRIMARY KEY (`ID`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `confiscation` ( -- No data as yet
   `ID` INT(10) NOT NULL AUTO_INCREMENT,     	/* !PK: numeric ID (i.e. entry order) */
@@ -618,7 +618,7 @@ CREATE TABLE IF NOT EXISTS `stamping` ( -- From manuscript_events
 	`date_entered` VARCHAR(255), -- [EventDateEntered]
 	`entered_by_user` VARCHAR(255), -- [EventUser]
 	PRIMARY KEY (`ID`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `banned_list_record` ( -- From manuscript_titles_illegal
 	`ID` INT NOT NULL AUTO_INCREMENT,
@@ -630,7 +630,7 @@ CREATE TABLE IF NOT EXISTS `banned_list_record` ( -- From manuscript_titles_ille
 	`folio` VARCHAR(50),
 	`notes` TEXT,
 	PRIMARY KEY(`ID`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `bastille_register_record` ( -- From manuscript_titles_illegal
 	`ID` INT NOT NULL AUTO_INCREMENT,
@@ -647,7 +647,7 @@ CREATE TABLE IF NOT EXISTS `bastille_register_record` ( -- From manuscript_title
 	`category` VARCHAR(255),
 	`notes` TEXT,
 	PRIMARY KEY(`ID`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 	
 CREATE TABLE IF NOT EXISTS `condemnation` (
 	`ID` INT NOT NULL AUTO_INCREMENT,
@@ -662,7 +662,7 @@ CREATE TABLE IF NOT EXISTS `condemnation` (
 	`other_judgment` VARCHAR(255),
 	`notes` TEXT,
 	PRIMARY KEY (`ID`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `provincial_inspection` ( -- from Excel spreadsheet
 	`ID` INT NOT NULL AUTO_INCREMENT,
@@ -692,7 +692,7 @@ CREATE TABLE IF NOT EXISTS `provincial_inspection` ( -- from Excel spreadsheet
 	`decision_date` DATE,
 	`notes` TEXT,
 	PRIMARY KEY(`ID`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `permission_simple_grant` ( -- from Excel spreadsheet
 	`ID` INT NOT NULL AUTO_INCREMENT,
@@ -706,7 +706,7 @@ CREATE TABLE IF NOT EXISTS `permission_simple_grant` ( -- from Excel spreadsheet
 	`work_confirmed` ENUM('yes', 'no', 'probable'),
 	`edition_confirmed` ENUM('yes', 'no', 'probable'),
 	PRIMARY KEY (`ID`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*
 
@@ -726,14 +726,14 @@ CREATE TABLE IF NOT EXISTS `parisian_stock_auction` ( -- From manuscript_sales_e
 	`auction_reason` INT,
 	`place` CHAR(5), -- place auction took place (always pl306)
 	PRIMARY KEY (`auction_id`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `auction_administrator` (
 	`auction_id` CHAR(5) NOT NULL, -- ID of the auction
 	`administrator_id` CHAR(8) NOT NULL, -- agent_code of the administrator
 	`administrator_role` INT NOT NULL,
 	PRIMARY KEY (`auction_id`, `administrator_id`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `parisian_stock_sale` ( -- From manuscript_events_sales
 	`ID` INT NOT NULL AUTO_INCREMENT,
@@ -753,7 +753,7 @@ CREATE TABLE IF NOT EXISTS `parisian_stock_sale` ( -- From manuscript_events_sal
 	`event_notes` TEXT, -- [EventOther]
 	`sale_notes` TEXT, -- [EventMoreNotes]
 	PRIMARY KEY (`ID`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*
 
@@ -781,27 +781,27 @@ CREATE TABLE IF NOT EXISTS `stn_order` ( -- From orders
 	`balle_number` VARCHAR(50),
 	`cash` BIT,
 	PRIMARY KEY(`order_code`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_order_agent` ( -- From orders_agents
 	`order_code` CHAR(9) NOT NULL,
 	`client_code` CHAR(6) NOT NULL,
 	`place_code` CHAR(5),
 	PRIMARY KEY(`order_code`, `client_code`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_order_sent_via` ( -- From orders_sent_via
 	`order_code` CHAR(9) NOT NULL,
 	`client_code` CHAR(6) NOT NULL,
 	`place_code` CHAR(5),
 	PRIMARY KEY(`order_code`, `client_code`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_order_sent_via_place` ( -- From orders_sent_via_place
 	`order_code` CHAR(9) NOT NULL,
 	`place_code` CHAR(5) NOT NULL,
 	PRIMARY KEY(`order_code`, `place_code`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_transaction` ( -- From transactions
 	`transaction_code` CHAR(9) NOT NULL,
@@ -816,7 +816,7 @@ CREATE TABLE IF NOT EXISTS `stn_transaction` ( -- From transactions
 	`total_number_of_volumes` INT,
 	`notes` VARCHAR(4000),
 	PRIMARY KEY(`transaction_code`, `order_code`) -- Not sure why the composite index
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_transaction_volumes_exchanged` ( -- From transactions_volumes_exchanged
 	`transaction_code` CHAR(9) NOT NULL,
@@ -824,7 +824,7 @@ CREATE TABLE IF NOT EXISTS `stn_transaction_volumes_exchanged` ( -- From transac
 	`volume_number` INT NOT NULL,
 	`number_of_copies` INT,
 	PRIMARY KEY(`transaction_code`, `order_code`, `volume_number`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_darnton_sample_order` ( -- From http://www.robertdarnton.org/sites/default/files/CommandesLibrairesfrancais.xls
 	`ID` INT AUTO_INCREMENT PRIMARY KEY,		-- simple numeric ID
@@ -838,7 +838,7 @@ CREATE TABLE IF NOT EXISTS `stn_darnton_sample_order` ( -- From http://www.rober
 	`edition_long_title` TEXT,					-- long title of the book
 	`ordered_by` CHAR(6),						-- !FK: client_code of STN client
 	`notes` TEXT								-- Darnton's research notes
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*
 
@@ -872,7 +872,7 @@ CREATE TABLE IF NOT EXISTS mmf_work (
 	original_title TEXT,
 	translation_comments TEXT,
 	description TEXT
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 CREATE TABLE IF NOT EXISTS mmf_edition (
 	edition_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 	work_id INT,
@@ -891,20 +891,20 @@ CREATE TABLE IF NOT EXISTS mmf_edition (
 	final_comments TEXT,
 	first_text TEXT,
 	mpce_edition_code CHAR(12) -- Link to MPCE database
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS mmf_holding (
 	holding_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 	edition_id INT NOT NULL,
 	lib_name VARCHAR(255),
 	lib_id INT
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS mmf_lib (
 	lib_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 	short_name VARCHAR(255),
 	full_name TEXT
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS mmf_ref (
 	ref_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -913,12 +913,12 @@ CREATE TABLE IF NOT EXISTS mmf_ref (
 	page_num INT,
 	ref_work INT,
 	ref_type INT NOT NULL
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS mmf_ref_type (
 	ref_type_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 	name VARCHAR(255)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS mmf_error (
 	error_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -928,4 +928,4 @@ CREATE TABLE IF NOT EXISTS mmf_error (
 	text TEXT,
 	error_note VARCHAR(255),
 	date DATE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
