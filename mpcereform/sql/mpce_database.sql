@@ -594,6 +594,7 @@ CREATE TABLE IF NOT EXISTS `confiscation` ( -- No data as yet
   `signatory_text` VARCHAR(255),				/* if the books were 'rendered' to someone, their name as it appears in the register */
   `signatory` CHAR(8),							/* !FK: agent_code of signatory */
   `signatory_signed_on_behalf_of` CHAR(8),		/* !FK: agent_code of whomever the signatory represented */
+  `notes` TEXT,
   PRIMARY KEY (`ID`)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8;
 
