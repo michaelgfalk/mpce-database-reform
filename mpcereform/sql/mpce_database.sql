@@ -535,6 +535,7 @@ CREATE TABLE IF NOT EXISTS `consignment` ( -- From Excel spreadsheet
   `customs_register_ms` INT(255),				/* MS number in the range 21914-26 */
   `customs_register_folio` VARCHAR(255),		/* folio reference in customs register */
   `ms_21935_folio` VARCHAR(255),				/* folio reference in MS21935, the supplementary confiscations register */
+  `ms_21935_entry_no` VARCHAR(255),				/* entry number in MS21935 */
   `shipping_number` VARCHAR(255),				/* shipping number as given in the register */
   `marque` VARCHAR(255),						/* marque on consignment as given in the register */
   `inspection_date` DATE,						/* date recorded in the confiscation register */

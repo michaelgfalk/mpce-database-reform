@@ -498,7 +498,7 @@ class LocalDB():
             print(f'Importing confiscations data from {p} ...')
             consignments = load_workbook(p, read_only=True, keep_vba=False)
         insert_params = []
-        for row in consignments['Confiscations master'].iter_rows(min_row=2, values_only=True):
+        for row in consignments['Confiscations master'].iter_rows(min_row=2, max_col=45, values_only=True):
             insert_params.append({
                 'ID': row[0],
                 'UUID': str(uuid1()),
@@ -506,7 +506,8 @@ class LocalDB():
                 'conf_reg_fol': row[2],
                 'cust_reg_ms': row[3],
                 'cust_reg_fol': row[4],
-                '21935': row[5],
+                '21935_fol': row[5],
+                '21925_no': row[45],
                 'date': row[6],
                 'ship_no': row[7],
                 'marque': row[8],
@@ -525,7 +526,7 @@ class LocalDB():
             INSERT INTO mpce.consignment (
                 ID, UUID, confiscation_register_ms, confiscation_register_folio,
                 customs_register_ms, customs_register_folio,
-                ms_21935_folio, shipping_number, marque,
+                ms_21935_folio, ms_21935_entry_no, shipping_number, marque,
                 inspection_date, origin_text, origin_code,
                 other_stakeholder, acquit_a_caution, returned_to_name,
                 returned_to_agent, returned_to_town,
@@ -534,7 +535,7 @@ class LocalDB():
             VALUES (
                 %(ID)s, %(UUID)s, %(conf_reg_ms)s, %(conf_reg_fol)s,
                 %(cust_reg_ms)s, %(cust_reg_fol)s,
-                %(21935)s, %(ship_no)s, %(marque)s,
+                %(21935_fol)s, %(21935_no), %(ship_no)s, %(marque)s,
                 %(date)s, %(or_text)s, %(or_code)s,
                 %(stakeholder)s, %(acquit)s, %(return_name)s,
                 %(return_agent)s, %(return_town)s,
@@ -1441,9 +1442,10 @@ class LocalDB():
         cur.execute("SELECT COUNT(*) FROM mpce.condemnation")
         events['condemned by the authorities'] = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM mpce.consignment")
-        events['arrived in a suspect consignment at Paris customs'] = cur.fetchone()[0]
+        events['intercepted in a suspect consignment by Paris customs'] = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM mpce.parisian_stock_sale")
-        events['sold at the Paris stock sales, or the right to print them'] = cur.fetchone()[0]
+        events['sold, or the right to print them transferred, at the Paris stock sales'] = cur.fetchone()[
+            0]
         cur.execute("SELECT COUNT(*) FROM mpce.permission_simple_grant")
         events['licensed under the permission simple'] = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM mpce.provincial_inspection")
