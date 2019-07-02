@@ -877,7 +877,7 @@ class LocalDB():
         self.conn.commit()
         print(f'{cur.rowcount} authors with agent_codes found in spreadsheet.')
 
-        # Create new agents for all authors without a agent_code
+        # Create new agents for all authors without an agent_code
         cur.execute("""
             SELECT ma.author_name, ma.author_code
             FROM manuscripts.manuscript_authors AS ma
@@ -885,17 +885,25 @@ class LocalDB():
                 ON aa.author_code = ma.author_code
             WHERE aa.agent_code IS NULL
         """)
-        unassigned_auths = cur.fetchall()
-        n = len(unassigned_auths)
-        new_ag_cdes = self._get_code_sequence('mpce.agent','agent_code', n, cur)
+        # There are duplicate authors...
+        # Create dict of authors
+        unassigned_auths = {code:name for name, code in cur.fetchall()}
+        # Get unique names, and assign agent_codes
+        unique_names = set(unassigned_auths.values())
+        n = len(unique_names)
+        new_agent_codes = self._get_code_sequence('mpce.agent','agent_code', n, cur)
+        name_code = {name: code for name, code in zip(
+            unique_names, new_agent_codes)}
         cur.executemany("""
             INSERT INTO mpce.agent (agent_code, name)
             VALUES (%s, %s)
-        """, seq_params=[(ag_cd, name) for ag_cd, (name, au_cd) in zip(new_ag_cdes, unassigned_auths)])
+        """, seq_params=[(code, name) for name, code in name_code.items()])
+        # Now map these new agent codes back onto author table
+        auth_agent = [(author_code, name_code[name]) for author_code, name in unassigned_auths.items()]
         cur.executemany("""
             INSERT INTO mpce.author_agent (author_code, agent_code)
             VALUES (%s, %s)
-        """, seq_params=[(au_cd, ag_cd) for ag_cd, (name, au_cd) in zip(new_ag_cdes, unassigned_auths)])
+        """, seq_params=auth_agent)
 
         print(f'{cur.rowcount} authors assigned new agent_codes...')
         self.conn.commit()
