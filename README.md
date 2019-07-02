@@ -14,6 +14,7 @@ The package has a command-line interface. Once it is installed, you can run the 
 * `Python 3.7` installed on your machine.
 * `git` installed on your machine.
 * Access to a MySQL/MariaDB database, which has the development version of the **FBTEE** database installed, called `manuscripts`. The SQL for the `manuscripts` database is available in the `mpcereform/sql` directory of this repository.
+* You will need `wheel` installed in order to install this as a python package: `pip install wheel`
 
 Next, download this repository:
 
