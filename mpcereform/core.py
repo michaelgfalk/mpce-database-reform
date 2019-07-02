@@ -507,7 +507,7 @@ class LocalDB():
                 'cust_reg_ms': row[3],
                 'cust_reg_fol': row[4],
                 '21935_fol': row[5],
-                '21925_no': row[44],
+                '21935_no': row[44],
                 'date': row[6],
                 'ship_no': row[7],
                 'marque': row[8],
