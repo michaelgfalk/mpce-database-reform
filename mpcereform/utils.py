@@ -1,6 +1,7 @@
 """Useful objects and methods"""
 
 import re
+from datetime import date
 
 def parse_date(string):
     """Parses date strings, allows for missing months and days"""
@@ -41,7 +42,11 @@ def parse_date(string):
             day_digits = day_mtch.group(0)
             day = day[:-len(day_digits)] + day_digits
 
-        return year + '-' + month + '-' + day
+        # Validate
+        try:
+            date(int(year), int(month), int(day))
+            return year + '-' + month + '-' + day
+        except ValueError:
+            return None
 
-    else:
-        return None
+    return None

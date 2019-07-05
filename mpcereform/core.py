@@ -423,9 +423,9 @@ class LocalDB():
         cur.execute("""
             UPDATE manuscripts.manuscript_titles_illegal
             SET illegal_date = NULL
-            WHERE illegal_date = 'No date available'
+            WHERE illegal_date LIKE 'No Date Available'
         """)
-
+        self.conn.commit()
         # Import banned books
         cur.execute("""
             INSERT INTO mpce.banned_list_record (
@@ -452,7 +452,8 @@ class LocalDB():
                 category, notes
             )
             SELECT i.UUID, i.illegal_super_book_code, i.illegal_full_book_title,
-                i.illegal_author_name, i.bastille_imprint_full, CONCAT(i.illegal_date, '-00-00'),
+                i.illegal_author_name, i.bastille_imprint_full,
+                IF(i.illegal_date = '', NULL, CONCAT(i.illegal_date, '-00-00')),
                 i.bastille_copies_number, i.bastille_current_volumes, i.bastille_total_volumes,
                 i.bastille_book_category, i.illegal_notes
             FROM manuscripts.manuscript_titles_illegal AS i
@@ -528,8 +529,14 @@ class LocalDB():
                     WHEN EventCopiesType = 'crate' THEN 2
                     ELSE NULL
                     END AS units,
-                EventVols, EventLotPrice, EventDate, EventFolioPage,
-                EventCitation, EventArticle, EventNotes,
+                EventVols, EventLotPrice, IF(EventDate = '', NULL, EventDate), EventFolioPage,
+                EventCitation,
+                CASE
+                    WHEN EventArticle = '' THEN NULL
+                    WHEN EventArticle = 't8' THEN 8
+                    ELSE CONVERT(EventArticle, UNSIGNED INTEGER)
+                END as article,
+                EventNotes,
                 EventOther, EventMoreNotes
             FROM manuscripts.manuscript_events_sales AS ss
             LEFT JOIN mpce.sale_type AS st
@@ -556,22 +563,37 @@ class LocalDB():
         insert_params = []
         for row in consignments['Confiscations master'].iter_rows(min_row=2,
                                                                   max_col=45, values_only=True):
+
+            # Process certain columns:
+            try:
+                cust_reg_ms = int(row[3])
+            except ValueError:
+                cust_reg_ms = None
+            
+            if isinstance(row[9], str):
+                if row[9].startswith('y'):
+                    acquit = 'yes'
+                if row[9].startswith('no'):
+                    acquit = 'no'
+            else:
+                row[9] = None
+
             insert_params.append({
                 'ID': row[0],
                 'UUID': str(uuid1()),
                 'conf_reg_ms': row[1],
                 'conf_reg_fol': row[2],
-                'cust_reg_ms': row[3],
+                'cust_reg_ms': cust_reg_ms,
                 'cust_reg_fol': row[4],
                 '21935_fol': row[5],
                 '21935_no': row[44],
                 'date': row[6],
                 'ship_no': row[7],
                 'marque': row[8],
-                'acquit': row[9],
+                'acquit': acquit,
                 'stakeholder': row[32],
                 'or_text': row[33],
-                'or_code': row[34],
+                'or_code': row[34][:5], # can't take more than one code
                 'return_name': row[36],
                 'return_agent': row[38],
                 'return_town': row[40],
@@ -592,7 +614,7 @@ class LocalDB():
             VALUES (
                 %(ID)s, %(UUID)s, %(conf_reg_ms)s, %(conf_reg_fol)s,
                 %(cust_reg_ms)s, %(cust_reg_fol)s,
-                %(21935_fol)s, %(21935_no), %(ship_no)s, %(marque)s,
+                %(21935_fol)s, %(21935_no)s, %(ship_no)s, %(marque)s,
                 %(date)s, %(or_text)s, %(or_code)s,
                 %(stakeholder)s, %(acquit)s, %(return_name)s,
                 %(return_agent)s, %(return_town)s,
@@ -646,6 +668,12 @@ class LocalDB():
             act_pub, _, imp_place, act_place, _, stated_yrs = row[10:16]
             act_yrs, pge, quick_pg, vols, sec, edn, sheets = row[16:23]
             _, _, _, _, notes, research_notes, url = row[23:30]
+
+            # Validate certain columns
+            try:
+                int(vols)
+            except ValueError:
+                vols = None
 
             updated_edition_data.append((
                 code, status, ed_type, full_title, short_title,

@@ -82,26 +82,26 @@ CREATE TABLE IF NOT EXISTS `edition` ( -- From manuscript_books_editions [books 
 	original STN database.
 	*/
 	`edition_code` CHAR(12) NOT NULL,
-	`work_code` CHAR(12) NOT NULL,
-	`edition_status` VARCHAR(15),
-	`edition_type` VARCHAR(50),
+	`work_code` CHAR(12),
+	`edition_status` VARCHAR(255),
+	`edition_type` VARCHAR(255),
 	`full_book_title` VARCHAR(750),
 	`short_book_titles` VARCHAR(1000),
 	`translated_title` VARCHAR(750),
-	`translated_language` VARCHAR(50),
+	`translated_language` VARCHAR(255),
 	`languages` VARCHAR(200),
 	`imprint_publishers` VARCHAR(1000),
 	`actual_publishers` VARCHAR(1000),
 	`imprint_publication_places` VARCHAR(1000),
 	`actual_publication_places` VARCHAR(1000),
 	`imprint_publication_years` VARCHAR(1000),
-	`actual_publication_years` VARCHAR(10),
-	`pages` VARCHAR(250),
-	`quick_pages` VARCHAR(10),
+	`actual_publication_years` VARCHAR(255),
+	`pages` VARCHAR(1000),
+	`quick_pages` VARCHAR(255),
 	`number_of_volumes` INT(11),
-	`section` VARCHAR(10),
-	`edition` VARCHAR(100),
-	`book_sheets` VARCHAR(200),
+	`section` VARCHAR(255),
+	`edition` VARCHAR(255),
+	`book_sheets` VARCHAR(255),
 	`known_pirated` BIT DEFAULT 0,
 	`notes` VARCHAR(4000),
 	`research_notes` VARCHAR(1000),
@@ -641,8 +641,8 @@ CREATE TABLE IF NOT EXISTS `bastille_register_record` ( -- From manuscript_title
 	`work_code` CHAR(12), -- To be deleted once data is fully resolved
 	`title` VARCHAR(750),
 	`author_name` VARCHAR(750),
-	`imprint` VARCHAR(750),
-	`publication_year` INT, -- Need to remove 'No date available'
+	`imprint` TEXT,
+	`publication_year` DATE, -- Need to remove 'No date available'
 	`copies_found` VARCHAR(255),
 	`current_volumes` VARCHAR(255),
 	`total_volumes` VARCHAR(255),
@@ -733,7 +733,7 @@ CREATE TABLE IF NOT EXISTS `parisian_stock_auction` ( -- From manuscript_sales_e
 CREATE TABLE IF NOT EXISTS `auction_administrator` (
 	`auction_id` CHAR(5) NOT NULL, -- ID of the auction
 	`administrator_id` CHAR(8) NOT NULL, -- agent_code of the administrator
-	`administrator_role` INT NOT NULL,
+	`administrator_role` INT,
 	PRIMARY KEY (`auction_id`, `administrator_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
@@ -749,7 +749,7 @@ CREATE TABLE IF NOT EXISTS `parisian_stock_sale` ( -- From manuscript_events_sal
 	`lot_price` VARCHAR(50),
 	`date` DATE,
 	`folio` VARCHAR(50),
-	`citation` VARCHAR(255), -- Full citation in the original source
+	`citation` TEXT, -- Full citation in the original source
 	`article_number` INT,
 	`edition_notes` TEXT, -- [EventNotes]
 	`event_notes` TEXT, -- [EventOther]
