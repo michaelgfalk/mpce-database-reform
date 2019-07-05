@@ -1,6 +1,7 @@
 """Functions for copying data from the old database to the new."""
 
 #pylint:disable=line-too-long;
+#pylint:disable=too-many-lines;
 
 import re
 from importlib.resources import read_text, path
