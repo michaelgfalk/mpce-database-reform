@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS `edition` ( -- From manuscript_books_editions [books 
 
 CREATE TABLE IF NOT EXISTS parisian_category (
 	`parisian_category_code` CHAR(5) NOT NULL,
-	`name` VARCHAR(250) NOT NULL,
+	`name` VARCHAR(255) NOT NULL,
 	`ancestor1` CHAR(5),
 	`ancestor2` CHAR(5),
 	`ancestor3` CHAR(5),
@@ -130,7 +130,7 @@ CREATE TABLE IF NOT EXISTS keyword (
 
 CREATE TABLE IF NOT EXISTS keyword_fuzzy_values (
 	`fuzzy_value_code` INT NOT NULL,
-	`fuzzy_value` VARCHAR(50),
+	`fuzzy_value` VARCHAR(255),
 	PRIMARY KEY (`fuzzy_value_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 INSERT INTO
@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS tag (
 
 CREATE TABLE IF NOT EXISTS work_keyword (
 	`work_code` CHAR(12),
-	`keyword_code` CHAR(5),
+	`keyword_code` CHAR(5), 
 	PRIMARY KEY (`work_code`,`keyword_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
@@ -294,24 +294,24 @@ The place data has been thoroughly checked and linked to geonames.
 
 CREATE TABLE IF NOT EXISTS `place` ( -- From manuscript_places
 	`place_code` CHAR(5) NOT NULL,
-	`name` VARCHAR(50),
+	`name` VARCHAR(255),
 	`alternative_names` VARCHAR(255),
-	`town` VARCHAR(50),
-	`C18_lower_territory` VARCHAR(50),
-	`C18_sovereign_territory` VARCHAR(50),
-	`C21_admin` VARCHAR(50),
-	`C21_country` VARCHAR(50),
-	`geographic_zone` VARCHAR(50),
-	`BSR` VARCHAR(50),
-	`HRE` BIT(1) NOT NULL,
-	`EL` BIT(1) NOT NULL,
-	`IFC` BIT(1) NOT NULL,
-	`P` BIT(1) NOT NULL,
-	`HE` BIT(1) NOT NULL,
-	`HT` BIT(1) NOT NULL,
-	`WT` BIT(1) NOT NULL,
-	`PT` BIT(1) NOT NULL,
-	`PrT` BIT(1) NOT NULL,
+	`town` VARCHAR(255),
+	`C18_lower_territory` VARCHAR(255),
+	`C18_sovereign_territory` VARCHAR(255),
+	`C21_admin` VARCHAR(255),
+	`C21_country` VARCHAR(255),
+	`geographic_zone` VARCHAR(255),
+	`BSR` VARCHAR(255),
+	`HRE` BIT(1),
+	`EL` BIT(1),
+	`IFC` BIT(1),
+	`P` BIT(1),
+	`HE` BIT(1),
+	`HT` BIT(1),
+	`WT` BIT(1),
+	`PT` BIT(1),
+	`PrT` BIT(1),
 	`distance_from_neuchatel` DOUBLE,
 	`latitude` DECIMAL(10,8),
 	`longitude` DECIMAL(10,8),
@@ -325,8 +325,8 @@ CREATE TABLE IF NOT EXISTS `agent_address` ( -- From clients_addresses
 	`agent_code` CHAR(8) NOT NULL,
 	`place_code` CHAR(5) NOT NULL,
 	`address` VARCHAR(50),
-	`from_date` DATE,
-	`to_date` DATE
+	`from_date` VARCHAR(255), -- To be validated at another time
+	`to_date` VARCHAR(255) -- To be validated at another time
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*
@@ -364,7 +364,7 @@ CREATE TABLE IF NOT EXISTS `stn_client_correspondence_ms` ( -- From clients_corr
 CREATE TABLE IF NOT EXISTS `stn_client_correspondence_place` ( -- From clients_correspondence_places
 	`client_code` CHAR(6) NOT NULL,
 	`place_code` CHAR(5) NOT NULL,
-	`from_date` DATE,
+	`from_date` VARCHAR(255), -- To be validated at another time
 	PRIMARY KEY(`client_code`, `place_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
@@ -399,8 +399,8 @@ common, and which are shared in the below lookup tables.
 
 CREATE TABLE IF NOT EXISTS `unit` ( -- Used by confiscation, parisian_stock_sale and provincial_inspection
   `ID` INT(10) NOT NULL AUTO_INCREMENT,			/* !PK: numeric ID */
-  `name` VARCHAR(50),							/* the name of the relevant unit in French */
-  `definition` VARCHAR(250),					/* a definition of the relevant unit in English */
+  `name` VARCHAR(255),							/* the name of the relevant unit in French */
+  `definition` VARCHAR(255),					/* a definition of the relevant unit in English */
   PRIMARY KEY (`ID`)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8;
 INSERT INTO
@@ -419,7 +419,7 @@ VALUES
   
 CREATE TABLE IF NOT EXISTS `confiscation_reason` ( -- Currently only used by confiscation
   `ID` INT(10) NOT NULL AUTO_INCREMENT,			/* !PK: numeric ID */
-  `name` VARCHAR(100),							/* the name of the reason in French */
+  `name` VARCHAR(255),							/* the name of the reason in French */
   `definition` VARCHAR(750),					/* a definition of the reason in English */
   PRIMARY KEY (`ID`)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8;
@@ -441,7 +441,7 @@ VALUES
 
 CREATE TABLE IF NOT EXISTS `judgment` ( -- Currently used by confiscation, condemnation and provincial_inspection 
   `ID` INT(10) NOT NULL AUTO_INCREMENT,			/* !PK: numeric ID */
-  `name` VARCHAR(100),							/* the name of the decision in French */
+  `name` VARCHAR(255),							/* the name of the decision in French */
   `definition` VARCHAR(750),					/* a definition of the decision in English */
   PRIMARY KEY (`ID`)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8;
@@ -494,7 +494,7 @@ VALUES
 	
 CREATE TABLE IF NOT EXISTS transaction_direction( -- Currently only used by stn_transaction
 	`ID` INT,
-	`name` VARCHAR(5),
+	`name` VARCHAR(255),
 	PRIMARY KEY(`ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 INSERT INTO transaction_direction
@@ -777,7 +777,7 @@ CREATE TABLE IF NOT EXISTS `stn_order` ( -- From orders
 	`order_code` CHAR(9) NOT NULL,
 	`client_code` CHAR(6),
 	`place_code` CHAR(5),
-	`date` DATE,
+	`date` VARCHAR(255),
 	`manuscript_number` VARCHAR(50),
 	`manuscript_type` VARCHAR(50),
 	`balle_number` VARCHAR(50),

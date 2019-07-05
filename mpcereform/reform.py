@@ -8,8 +8,8 @@ def main():
     # Start connection, build schema if necessary
     print('\nDATABASE CONNECTION')
     print('======================\n')
-    db = LocalDB()
-    
+    db = LocalDB() #pylint:disable=invalid-name;
+
     # Run import methods
     print('\nENTITY IMPORT')
     print('======================\n')
@@ -25,8 +25,8 @@ def main():
 
     print('\nRESOLVING AGENT DATA')
     print('======================\n')
-    db.resolve_agents()  
-    
+    db.resolve_agents()
+
     db.summarise()
 
 if __name__ == '__main__':

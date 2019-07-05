@@ -1,10 +1,13 @@
 """Functions for copying data from the old database to the new."""
 
-import mysql.connector as mysql
+#pylint:disable=too-many-lines;
+
 import re
 from importlib.resources import read_text, path
-from openpyxl import load_workbook
 from uuid import uuid1
+
+import mysql.connector as mysql
+from openpyxl import load_workbook
 
 from mpcereform.utils import parse_date
 
@@ -80,15 +83,15 @@ class LocalDB():
         'Sens': 'cl2067'
     }
 
-    def __init__(self, user = 'root', host = '127.0.0.1', password = None):
-        self.conn = mysql.connect(user = user, host = host, password = password)
+    def __init__(self, user='root', host='127.0.0.1', password=None):
+        self.conn = mysql.connect(user=user, host=host, password=password)
 
         # Check databases exist
         cur = self.conn.cursor()
         cur.execute("SHOW DATABASES")
         db_list = [x[0] for x in cur.fetchall()]
 
-        def check_for_dbs(msg = None):
+        def check_for_dbs(msg=None):
             # Check for mpce
             if 'mpce' in db_list:
                 if msg is None:
@@ -109,7 +112,7 @@ class LocalDB():
             # Check for manuscripts
             if 'manuscripts' not in db_list:
                 raise mysql.DatabaseError("Manuscripts database not found!")
-    
+
         check_for_dbs()
 
     def create_new_db(self):
@@ -147,11 +150,10 @@ class LocalDB():
             )
             SELECT super_book_code, super_book_title, parisian_keyword, illegality
             FROM manuscripts.manuscript_books
-            """
-        )
+        """)
         self.conn.commit()
         print(f'{cur.rowcount} works copied.')
-        
+
         # Copy categorisation data
         print("Processing keywords...")
         cur.execute("""
@@ -159,9 +161,35 @@ class LocalDB():
             SET
                 w.categorisation_fuzzy_value = cf.fuzzyValue,
                 w.categorisation_notes = cf.fuzzyComment
-            WHERE w.work_code = cf.super_book_code
-            """
-        )
+            WHERE w.work_code = cf.super_book_code AND
+            cf.fuzzyValue <> 'null'
+        """)
+
+        # Reform the 20 or so invalid keyword codes
+        cur.execute('SELECT * FROM manuscripts.keywords')
+        all_keywords = cur.fetchall()
+        next_keyid = max([int(code[1:]) 
+                          for (code, word, definition, tag) in all_keywords if len(code) == 5])
+        # Create map
+        cur.execute('CREATE TEMPORARY TABLE mpce.keyword_map (old_code VARCHAR(255), new_code VARCHAR(255))')
+        keyword_map = []
+        for code, _, _, _ in all_keywords:
+            if len(code) != 5:
+                next_keyid += 1
+                keyword_map.append((code, f'k{next_keyid}'))
+            else:
+                keyword_map.append((code, code))
+        cur.executemany("""
+            INSERT INTO mpce.keyword_map
+            VALUES (%s, %s)
+        """, seq_params=keyword_map)
+        cur.execute("""
+            INSERT INTO mpce.keyword
+            SELECT map.new_code, kw.keyword, kw.definition, kw.tag_code
+            FROM manuscripts.keywords AS kw
+                LEFT JOIN mpce.keyword_map AS map
+                    ON kw.keyword_code = map.old_code
+        """)
 
         # Break keywords out into join table
         # Keyword assignments are comma-seperated values in 'manuscripts'
@@ -174,11 +202,23 @@ class LocalDB():
         keywords_split = []
         for sbk, kwds in keywords:
             for kwd in kwds.split(','):
-                keywords_split.append((sbk, kwd))
+                keywords_split.append((sbk, kwd.strip()))
+        cur.execute("""CREATE TEMPORARY TABLE mpce.work_keyword_temp (
+            work_code VARCHAR(255),
+            keyword_code VARCHAR(255)
+        )
+        """)
         cur.executemany("""
-            INSERT INTO mpce.work_keyword (work_code, keyword_code)
+            INSERT INTO mpce.work_keyword_temp (work_code, keyword_code)
             VALUES (%s, %s)
-        """, keywords_split)
+        """, seq_params=keywords_split)
+        cur.execute("""
+            INSERT INTO mpce.work_keyword (work_code, keyword_code)
+            SELECT temp.work_code, map.new_code
+            FROM mpce.work_keyword_temp AS temp
+                LEFT JOIN mpce.keyword_map AS map
+                    ON temp.keyword_code = map.old_code
+        """)
         self.conn.commit()
         print(f'{cur.rowcount} keyword assignments copied.')
 
@@ -186,10 +226,6 @@ class LocalDB():
         cur.execute("""
             INSERT INTO mpce.parisian_category
             SELECT * FROM manuscripts.parisian_keywords
-        """)
-        cur.execute("""
-            INSERT INTO mpce.keyword
-            SELECT * FROM manuscripts.keywords
         """)
         cur.execute("""
             INSERT INTO mpce.tag
@@ -261,8 +297,22 @@ class LocalDB():
         cur = self.conn.cursor()
 
         cur.execute("""
-            INSERT INTO mpce.place
-            SELECT * FROM manuscripts.places
+            INSERT INTO mpce.place (
+                place_code, name, alternative_names,
+                town, C18_lower_territory, C18_sovereign_territory,
+                C21_admin, C21_country, geographic_zone, BSR,
+                HRE, EL, IFC, P, HE, HT, WT, PT, PrT,
+                distance_from_neuchatel, latitude, longitude,
+                geoname, notes
+            )
+            SELECT
+                place_code, name, alternative_names,
+                town, C18_lower_territory, C18_sovereign_territory,
+                C21_admin, C21_country, geographic_zone, BSR,
+                HRE, EL, IFC, P, HE, HT, WT, PT, PrT,
+                distance_from_neuchatel, latitude, longitude,
+                geoname, notes
+            FROM manuscripts.places
         """)
         print(f'{cur.rowcount} places imported into `mpce.place`.')
 
@@ -279,9 +329,9 @@ class LocalDB():
             cur.execute(f'INSERT INTO {mpce} SELECT * FROM {man}')
             print(f'Data from `{man}` transferred to `{mpce}`.')
         self.conn.commit()
-        
+
         print('Unchanged STN data imported. Importing transactions...')
-        
+
         # Port transaction data across
         cur.execute("""
             CREATE TEMPORARY TABLE mpce.trans_type_key (
@@ -292,7 +342,7 @@ class LocalDB():
         cur.executemany("""
             INSERT INTO trans_type_key
             VALUES (%s, %s)
-        """, seq_params = [(name, id) for name, id in self.TRANSACTION_CODING.items()])
+        """, seq_params=[(name, id) for name, id in self.TRANSACTION_CODING.items()])
         # Copy data across with new coding
         cur.execute("""
             INSERT INTO mpce.stn_transaction (
@@ -337,7 +387,7 @@ class LocalDB():
         cur = self.conn.cursor()
 
         print(f'Importing new datasets from manuscripts database ...')
-        
+
         # L'estampillage de 1788
         cur.execute("""
             INSERT INTO mpce.stamping (
@@ -353,7 +403,9 @@ class LocalDB():
                 ID, ID_EditionName, ID_DealerName,
                 ID_AgentA, ID_AgentB,
                 ID_PlaceName, EventLocation,
-                EventCopies, EventVols, EventDate,
+                IF(EventCopies = '', NULL, CONVERT(EventCopies, UNSIGNED INTEGER)),
+                IF(EventVols = '', NULL, CONVERT(EventVols, UNSIGNED INTEGER)),
+                EventDate,
                 ID_Archive, EventFolioPage, EventCitation, EventPageStamped,
                 EventNotes, EventOther, EventArticle,
                 DateEntered, EventUser
@@ -361,7 +413,7 @@ class LocalDB():
         """)
         self.conn.commit()
         print(f'{cur.rowcount} stampings copied into `mpce.stamping`.')
-        
+
         # Illegal books
         # First clean up date and title fields
         cur.execute("""
@@ -385,7 +437,7 @@ class LocalDB():
         """)
         print(f'{cur.rowcount} banned books added to `mpce.banned_list_record`.')
         self.conn.commit()
-        
+
         # Import bastille register records
         # Index to speed up import:
         cur.execute("""
@@ -422,12 +474,12 @@ class LocalDB():
         # Get all the administrators
         cur.execute('SELECT salesNumber, ID_Agent FROM manuscripts.manuscript_sales_events')
         administrators = cur.fetchall()
-        
+
         # Make dict of auction_roles
         cur.execute('SELECT * FROM auction_role')
         auction_roles = cur.fetchall()
         auction_roles = {role:id for id,role in auction_roles}
-        
+
         # Split and flatten
         auction_administrator = []
         for sale, agents in administrators:
@@ -444,7 +496,7 @@ class LocalDB():
         cur.executemany(
             """INSERT INTO mpce.auction_administrator
             VALUES (%s, %s, %s)""",
-            seq_params = auction_administrator
+            seq_params=auction_administrator
         )
         print(f'{cur.rowcount} administration roles added to `mpce.auction_administrator`.')
         self.conn.commit()
@@ -487,7 +539,7 @@ class LocalDB():
 
     def import_data_spreadsheets(self):
         """Imports major data spreadsheets from MPCE.
-        
+
         NB: This function does not fully import the consignments data. The confiscation
         register signatories and the censors are left to self.resolve_agents()."""
 
@@ -557,12 +609,12 @@ class LocalDB():
         with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as pth:
             perm_simp = load_workbook(pth, read_only=True, keep_vba=False)
             print(f'Importing permission simple data from {pth} ...')
-        
+
         perm_simp_grants = []
         for row in perm_simp['Licences'].iter_rows(min_row=2, max_row=1768, max_col=14, values_only=True):
             daw_wk, daw_ed, date, ed, _, _ = row[:6]
             licensee, _, _, _, l_cop, p_cop, spbk_conf, ed_conf = row[6:14]
-            
+
             date = parse_date(date)
 
             perm_simp_grants.append(
@@ -584,20 +636,20 @@ class LocalDB():
 
         updated_edition_data = []
         for row in perm_simp['Editions'].iter_rows(min_row=2, max_row=1768, max_col=30, values_only=True):
-            code, status, type, _, full_title, short_title = row[:6]
+            code, status, ed_type, _, full_title, short_title = row[:6]
             trans_title, trans_lang, lang, imprint_pub = row[6:10]
             act_pub, _, imp_place, act_place, _, stated_yrs = row[10:16]
             act_yrs, pg, quick_pg, vols, sec, ed, sheets = row[16:23]
             _, _, _, _, notes, research_notes, url = row[23:30]
 
             updated_edition_data.append((
-                code, status, type, full_title, short_title,
+                code, status, ed_type, full_title, short_title,
                 trans_title, trans_lang, lang, imprint_pub,
                 act_pub, imp_place, act_place, stated_yrs,
                 act_yrs, pg, quick_pg, vols, sec, ed, sheets,
                 notes, research_notes, url
             ))
-        
+
         cur.executemany("""
             INSERT INTO mpce.edition (
                 edition_code, edition_status, edition_type,
@@ -648,7 +700,7 @@ class LocalDB():
 
         condemn_data = [row for row in comdemn['Sheet1'].iter_rows(
             min_row=2, max_row=114, max_col=6, values_only=True)]
-        
+
         cur.executemany("""
             INSERT INTO mpce.condemnation (
                 folio, title, notes, institution_text, date, other_judgment
@@ -665,11 +717,11 @@ class LocalDB():
 
         darnton_data = []
         for row in darnton_sample['FicheSauvegarde'].iter_rows(min_row=2, max_row=3399, max_col=11, values_only=True):
-            
+
             # Unpack row
-            title, format, volumes, author, num, date = row[:6]
+            title, bk_format, volumes, author, num, date = row[:6]
             long_title, ID, ordered_by, _, notes = row[6:11]
-            
+
             # Get client code
             if ordered_by in self.DARNTON_CLIENTS:
                 ordered_by = self.DARNTON_CLIENTS[ordered_by]
@@ -682,7 +734,7 @@ class LocalDB():
             date = year + '-' + month + '-' + day
 
             darnton_data.append(
-                (ID, title, format, volumes, author, num, date,
+                (ID, title, bk_format, volumes, author, num, date,
                 long_title, ordered_by, notes)
             )
 
@@ -702,7 +754,7 @@ class LocalDB():
 
         inspection_data = [row for row in prov_insp['Amalgamated sheet'].iter_rows(
             min_row=2, max_row=230, max_col=23, values_only=True)]
-        
+
         cur.execute("""
             CREATE TEMPORARY TABLE mpce.prov_insp_temp (
                 `ID` INT NOT NULL AUTO_INCREMENT,
@@ -777,13 +829,13 @@ class LocalDB():
 
     def resolve_agents(self):
         """Resolves references to persons and corporate entities in the database.
-        
+
         This method reforms all the agent data in the database,
         based on the information in the manuscripts database, and 
         in the provided spreadsheets."""
 
         cur = self.conn.cursor()
-        
+
         # Import basic agent data
         # Lenghten all person_codes by two digits.
         print('Importing existing agent data...')
@@ -807,7 +859,7 @@ class LocalDB():
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, people)
         print(f'{cur.rowcount} agents imported from `manuscripts.people` into `mpce.agent`.')
-        
+
         # Get client-agent data from STN database
         print('Importing stn client-agent relationships...')
         cur.execute("""
@@ -829,7 +881,7 @@ class LocalDB():
             FROM manuscripts.people_professions
         """)
         print(f'Professions and assignments imported from `manuscripts.professions` and `manuscripts.people_professions`.')
-        
+
         # The permission simple sheet contains some new professions
         with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as p:
             print(f'Importing new profession data from {p}')
@@ -939,7 +991,7 @@ class LocalDB():
         print(
             f'{cur.rowcount} profession codes assigned to "aucteurs", "redacteurs" and "traducteurs".')
         self.conn.commit()
-        
+
         # RESOLVE CLIENTS
 
         # Create a combined list of all clients
@@ -986,7 +1038,7 @@ class LocalDB():
             FROM manuscripts.manuscript_agents_inspectors
             ON DUPLICATE KEY UPDATE mpce.all_clients.notes = CONCAT(IFNULL(mpce.all_clients.notes, ''), ' Estampillage Notes: ', manuscripts.manuscript_agents_inspectors.notes)
         """)
-        
+
         # New clients in consignments workbook
         with path('mpcereform.spreadsheets', 'consignments.xlsx') as p:
             print(f'Scanning {p} ...')
@@ -995,16 +1047,16 @@ class LocalDB():
         for row in consignments['People final'].iter_rows(min_row=2, values_only=True):
             if type(row[3]) != str or type(row[2]) != str:
                 continue
-            
+
             # Split codes and names for multi-person cells
             codes = row[3].split(';')
             names = row[2].split(';')
-            
+
             # Get other data (these columns are never split)
             notes = row[4]
             title = row[5]
             place = row[7]
-            
+
             for code, name in zip(codes, names): # zip() deals with different-length sequences
                 code = code.strip()
                 if code not in consignment_clients:
@@ -1016,7 +1068,7 @@ class LocalDB():
             VALUES (%s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE mpce.all_clients.notes = CONCAT(IFNULL(mpce.all_clients.notes, ''), ' Confiscations notes: ', VALUES(notes))
         """, seq_params = consignment_clients.values())
-        
+
         # New clients in permission simple
         with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as p:
             print(f'Scanning {p} ...')
@@ -1032,7 +1084,7 @@ class LocalDB():
         self.conn.commit()
         cur.execute('SELECT COUNT(client_code) FROM mpce.all_clients')
         print(f'{cur.fetchone()[0]} clients found across all datasets.')
-        
+
         # Insert data on new agents
 
         # Create temporary client_agent table from stn_client_agent
@@ -1124,8 +1176,7 @@ class LocalDB():
             INSERT INTO mpce.client_agent (client_code, agent_code)
             VALUES (%s, %s)
         """, seq_params=[(client[0], code) for client, code in zip(new_agents, code_list)])
-        
-        
+
         # Process new_agent data:
         processed_agents = []
         new_prof_assigns = []
@@ -1148,12 +1199,12 @@ class LocalDB():
             if place_codes is not None:
                 for place in re.split(r',\s*|;\s*', place_codes):
                     new_place_assigns.append((agent_code, place))
-            
+
             # Process professions
             if prof_codes is not None:
                 for prof in re.split(r',\s*|;\s*', prof_codes):
                     new_prof_assigns.append((agent_code, prof))
-            
+
             # Add processed agent to list
             processed_agents.append(
                 (agent_code, name, alt_names, gender, corporate, title)
@@ -1168,7 +1219,7 @@ class LocalDB():
         """, seq_params = processed_agents)
         print(f'{cur.rowcount} new agents added to `mpce.agent`.')
         self.conn.commit()
-        
+
         # Assign places to new agents:
         # Using stn address data
         cur.execute("""
@@ -1179,7 +1230,7 @@ class LocalDB():
                     ON addr.client_code = ca.client_code
         """)
         print(f'{cur.rowcount} addresses imported from `manuscripts.clients_addresses`.')
-        
+
         # Using generated python list
         # I tried to do this by creating a temporary index on agent_code and place_code,
         # and then doing an INSERT IGNORE, but for some reason mysql.connector kept
@@ -1225,7 +1276,7 @@ class LocalDB():
             SET tbl.returned_to_agent = ca.agent_code
         """)
         print(f'{cur.rowcount} returned_to_agents in `mpce.consignment` resolved into agent_codes.')
-        
+
         # Store all_collectors and all_censors as strings
         cur.execute("""
             CREATE TEMPORARY TABLE all_collectors (
@@ -1304,7 +1355,7 @@ class LocalDB():
             SET tbl.agent_code = ca.agent_code
         """)
         print(f'{cur.rowcount} client codes in `mpce.consignment_handling_agent` resolved into agent_codes.')
-        
+
         cur.execute("""
             UPDATE mpce.stamping AS tbl
             LEFT JOIN mpce.client_agent AS ca ON tbl.permitted_dealer = ca.client_code
@@ -1321,7 +1372,7 @@ class LocalDB():
             SET tbl.attending_adjoint = ca.agent_code
         """)
         print(f'{cur.rowcount} client codes in `mpce.stamping` resolved into agent_codes.')
-        
+
         cur.execute("""
             UPDATE mpce.parisian_stock_auction AS tbl
             LEFT JOIN mpce.client_agent AS ca ON tbl.previous_owner = ca.client_code
@@ -1375,7 +1426,7 @@ class LocalDB():
 
         # QUERY: add foreign key constraints at this stage?
 
-        pass
+        pass #pylint:disable=unnecessary-pass;
 
     def summarise(self):
         """Outputs summary statistics about the database."""
@@ -1405,17 +1456,16 @@ class LocalDB():
                     ON ea.author_type = at.ID
             GROUP BY ea.author_type
         """)
-        for type, n in cur.fetchall():
-            if type is None:
+        for auth_type, n in cur.fetchall():
+            if auth_type is None:
                 continue
-            if type in {'Primary', 'Secondary'}:
-                print(f'     {n} {type} authors')
+            if auth_type in {'Primary', 'Secondary'}:
+                print(f'     {n} {auth_type} authors')
             else:
-                print(f'     {n} {type}s')
-        
+                print(f'     {n} {auth_type}s')
+
         print('')
 
-        
         # Agents:
         cur.execute("SELECT COUNT(agent_code), SUM(corporate_entity) FROM mpce.agent")
         agents, entities = cur.fetchone()
@@ -1424,7 +1474,7 @@ class LocalDB():
         print(f'     {entities} are corporate entities')
         cur.execute('SELECT COUNT(*) FROM mpce.stn_client_agent')
         print(f'     {cur.fetchone()[0]} were clients of the STN')
-        
+
         print('')
 
         # Places:
@@ -1472,7 +1522,7 @@ class LocalDB():
     # Utility methods
     def _get_code_sequence(self, table, column, n, cursor = None):
         """Return a list of the next n free codes.
-        
+
         Arguments:
         ==========
             table (str): name of table to be queried
@@ -1494,7 +1544,7 @@ class LocalDB():
             cur = cursor
         else:
             cur = self.conn.cursor()
-        
+
         # Retrieve agent codes, strip 'id' and leading 0s, convert to int
         cur.execute(f'SELECT {column} FROM {table}')
         codes = cur.fetchall()
@@ -1507,7 +1557,7 @@ class LocalDB():
         # Extract numeric part of codes
         codes = [int(num_extr_rgx.search(id).group(0))
                  for (id,) in codes]
-        
+
         if cursor is None:
             cur.close()
 
@@ -1517,22 +1567,46 @@ class LocalDB():
         # Return list of codes
         return [frame[:-len(str(id))] + str(id) for id in range(next_id, next_id + n)]
 
-    def _import_spreadsheet_agents(self, table, worksheet, cursor, text_col, code_col, id_col=0):
+    def _import_spreadsheet_agents(self, table, worksheet, cursor, text_col, code_col):
         """Custom method for consignments workbook."""
         agents = []
         for row in worksheet.iter_rows(min_row=2, values_only=True):
-            id = row[0]
+            agent_id = row[0]
             names, codes = row[text_col], row[code_col]
-            if type(names) != str or type(codes) != str:
+            if isinstance(names, str) or ~isinstance(codes, str):
                 continue
             else:
                 names = names.split(';')
                 codes = codes.split(';')
             for name, code in zip(names, codes):
-                agents.append((id, code.strip(), name.strip()))
+                agents.append((agent_id, code.strip(), name.strip()))
         cursor.executemany((
             f'INSERT INTO {table} (consignment, agent_code, text) '
             'VALUES (%s, %s, %s)'
         ), agents)
         print(f'{cursor.rowcount} agency relations inserted into `{table}`.')
         self.conn.commit()
+
+    def _get_auto_increment(self, table, column, cur = None):
+        """Returns the frame and next id value for the nominated id column."""
+        if cur is None:
+            cur = self.conn.cursor()
+
+        # Regexes
+        num_extr_rgx = re.compile(r'[1-9]\d*') # Extract numerical part of id
+        frame_rgx = re.compile(r'[a-z]+(?=0)') # To find frame
+
+        cur.execute(f'SELECT {column} FROM {table}')
+        ids = cur.fetchall()
+
+        # The next id is the max value + 1
+        # Remember each record is a tuple
+        next_id = max([int(num_extr_rgx.search(record[0]).group(0)) for record in ids]) + 1
+
+        # Get the frame from any of the values
+        # For legacy reasons, some of these id columns have different frames
+        # This function looks at the first value, so gets the original frame
+        frame = frame_rgx.search(ids[0][0]).group(0)
+
+        return next_id, frame
+

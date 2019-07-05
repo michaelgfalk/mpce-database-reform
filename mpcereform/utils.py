@@ -25,7 +25,7 @@ def parse_date(string):
     month = '00'
     day = '00'
 
-    if type(string) == str and len(string) > 0:
+    if isinstance(string, str) and string != '': #pylint:disable=no-else-return;
 
         # Regexes to find components
         year_mtch = re.search(r'\b\d{4}\b', string)
@@ -41,7 +41,7 @@ def parse_date(string):
             day_digits = day_mtch.group(0)
             day = day[:-len(day_digits)] + day_digits
 
-        return(year + '-' + month + '-' + day)
-    
+        return year + '-' + month + '-' + day
+
     else:
         return None
