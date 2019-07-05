@@ -1,6 +1,6 @@
 """Functions for copying data from the old database to the new."""
 
-#pylint:disable=too-many-lines;
+#pylint:disable=line-too-long;
 
 import re
 from importlib.resources import read_text, path
@@ -168,10 +168,13 @@ class LocalDB():
         # Reform the 20 or so invalid keyword codes
         cur.execute('SELECT * FROM manuscripts.keywords')
         all_keywords = cur.fetchall()
-        next_keyid = max([int(code[1:]) 
+        next_keyid = max([int(code[1:])
                           for (code, word, definition, tag) in all_keywords if len(code) == 5])
         # Create map
-        cur.execute('CREATE TEMPORARY TABLE mpce.keyword_map (old_code VARCHAR(255), new_code VARCHAR(255))')
+        cur.execute("""
+            CREATE TEMPORARY TABLE mpce.keyword_map (
+                old_code VARCHAR(255), new_code VARCHAR(255)
+            )""")
         keyword_map = []
         for code, _, _, _ in all_keywords:
             if len(code) != 5:
@@ -271,7 +274,7 @@ class LocalDB():
                 edition_code, work_code, edition_status, edition_type,
                 full_book_title, short_book_titles, translated_title,
                 translated_language, languages, imprint_publishers,
-                actual_publishers, imprint_publication_places, 
+                actual_publishers, imprint_publication_places,
                 actual_publication_places, imprint_publication_years,
                 actual_publication_years, pages, quick_pages,
                 number_of_volumes, section, edition, book_sheets,
@@ -361,7 +364,7 @@ class LocalDB():
                 ON t.direction_of_transaction LIKE tc.name
         """)
         self.conn.commit()
-        print(f'{cur.rowcount} transactions ported into `mpce.stn_transaction` with new direction coding.')
+        print(f'{cur.rowcount} transactions ported into `mpce.stn_transaction` with new direction coding.') #pylint:disable=line-too-long;
 
         # Clients (need to parse dates)
         print(f'Importing client data, parsing dates ...')
@@ -442,13 +445,13 @@ class LocalDB():
         # Index to speed up import:
         cur.execute("""
             INSERT INTO mpce.bastille_register_record (
-                UUID, work_code, title, 
+                UUID, work_code, title,
                 author_name, imprint, publication_year,
                 copies_found, current_volumes, total_volumes,
                 category, notes
             )
-            SELECT i.UUID, i.illegal_super_book_code, i.illegal_full_book_title, 
-                i.illegal_author_name, i.bastille_imprint_full, CONCAT(i.illegal_date, '-00-00'), 
+            SELECT i.UUID, i.illegal_super_book_code, i.illegal_full_book_title,
+                i.illegal_author_name, i.bastille_imprint_full, CONCAT(i.illegal_date, '-00-00'),
                 i.bastille_copies_number, i.bastille_current_volumes, i.bastille_total_volumes,
                 i.bastille_book_category, i.illegal_notes
             FROM manuscripts.manuscript_titles_illegal AS i
@@ -478,7 +481,7 @@ class LocalDB():
         # Make dict of auction_roles
         cur.execute('SELECT * FROM auction_role')
         auction_roles = cur.fetchall()
-        auction_roles = {role:id for id,role in auction_roles}
+        auction_roles = {role:id for id, role in auction_roles}
 
         # Split and flatten
         auction_administrator = []
@@ -546,11 +549,12 @@ class LocalDB():
         cur = self.conn.cursor()
 
         # Import consignments
-        with path('mpcereform.spreadsheets', 'consignments.xlsx') as p:
-            print(f'Importing confiscations data from {p} ...')
-            consignments = load_workbook(p, read_only=True, keep_vba=False)
+        with path('mpcereform.spreadsheets', 'consignments.xlsx') as pth:
+            print(f'Importing confiscations data from {pth} ...')
+            consignments = load_workbook(pth, read_only=True, keep_vba=False)
         insert_params = []
-        for row in consignments['Confiscations master'].iter_rows(min_row=2, max_col=45, values_only=True):
+        for row in consignments['Confiscations master'].iter_rows(min_row=2,
+                                                                  max_col=45, values_only=True):
             insert_params.append({
                 'ID': row[0],
                 'UUID': str(uuid1()),
@@ -612,13 +616,13 @@ class LocalDB():
 
         perm_simp_grants = []
         for row in perm_simp['Licences'].iter_rows(min_row=2, max_row=1768, max_col=14, values_only=True):
-            daw_wk, daw_ed, date, ed, _, _ = row[:6]
+            daw_wk, daw_ed, date, edn, _, _ = row[:6]
             licensee, _, _, _, l_cop, p_cop, spbk_conf, ed_conf = row[6:14]
 
             date = parse_date(date)
 
             perm_simp_grants.append(
-                (daw_wk, daw_ed, date, ed, licensee,
+                (daw_wk, daw_ed, date, edn, licensee,
                  l_cop, p_cop, spbk_conf, ed_conf)
             )
 
@@ -639,14 +643,14 @@ class LocalDB():
             code, status, ed_type, _, full_title, short_title = row[:6]
             trans_title, trans_lang, lang, imprint_pub = row[6:10]
             act_pub, _, imp_place, act_place, _, stated_yrs = row[10:16]
-            act_yrs, pg, quick_pg, vols, sec, ed, sheets = row[16:23]
+            act_yrs, pge, quick_pg, vols, sec, edn, sheets = row[16:23]
             _, _, _, _, notes, research_notes, url = row[23:30]
 
             updated_edition_data.append((
                 code, status, ed_type, full_title, short_title,
                 trans_title, trans_lang, lang, imprint_pub,
                 act_pub, imp_place, act_place, stated_yrs,
-                act_yrs, pg, quick_pg, vols, sec, ed, sheets,
+                act_yrs, pge, quick_pg, vols, sec, edn, sheets,
                 notes, research_notes, url
             ))
 
@@ -657,7 +661,7 @@ class LocalDB():
                 translated_title, translated_language,
                 languages, imprint_publishers,
                 actual_publishers, imprint_publication_places,
-                actual_publication_places, imprint_publication_years, 
+                actual_publication_places, imprint_publication_years,
                 actual_publication_years, pages,
                 quick_pages, number_of_volumes, section,
                 edition, book_sheets, notes, research_notes,
@@ -720,7 +724,7 @@ class LocalDB():
 
             # Unpack row
             title, bk_format, volumes, author, num, date = row[:6]
-            long_title, ID, ordered_by, _, notes = row[6:11]
+            long_title, darn_id, ordered_by, _, notes = row[6:11]
 
             # Get client code
             if ordered_by in self.DARNTON_CLIENTS:
@@ -734,8 +738,8 @@ class LocalDB():
             date = year + '-' + month + '-' + day
 
             darnton_data.append(
-                (ID, title, bk_format, volumes, author, num, date,
-                long_title, ordered_by, notes)
+                (darn_id, title, bk_format, volumes, author, num, date,
+                 long_title, ordered_by, notes)
             )
 
         cur.executemany("""
@@ -744,7 +748,7 @@ class LocalDB():
                 edition_long_title, ordered_by, notes
             )
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, seq_params = darnton_data)
+        """, seq_params=darnton_data)
         print(f'{cur.rowcount} book orders imported into `mpce.stn_darnton_sample_order`.')
 
         # Import provincial inspections
@@ -798,7 +802,7 @@ class LocalDB():
                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                 %s, %s, %s
             )
-        """, seq_params = inspection_data)
+        """, seq_params=inspection_data)
         cur.execute("""
             INSERT INTO provincial_inspection (
                 ID, ms_ref, folio, inspected_in, item,
@@ -831,7 +835,7 @@ class LocalDB():
         """Resolves references to persons and corporate entities in the database.
 
         This method reforms all the agent data in the database,
-        based on the information in the manuscripts database, and 
+        based on the information in the manuscripts database, and
         in the provided spreadsheets."""
 
         cur = self.conn.cursor()
@@ -880,12 +884,15 @@ class LocalDB():
             SELECT CONCAT('id00', RIGHT(person_code, 4)), profession_code
             FROM manuscripts.people_professions
         """)
-        print(f'Professions and assignments imported from `manuscripts.professions` and `manuscripts.people_professions`.')
+        print((
+            'Professions and assignments imported from `manuscripts.professions` '
+            'and `manuscripts.people_professions`.'
+        ))
 
         # The permission simple sheet contains some new professions
-        with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as p:
-            print(f'Importing new profession data from {p}')
-            p_simple = load_workbook(p, read_only=True, keep_vba=False)
+        with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as pth:
+            print(f'Importing new profession data from {pth}')
+            p_simple = load_workbook(pth, read_only=True, keep_vba=False)
         new_professions = [row for row in p_simple['New Professions'].iter_rows(
             min_row=2, values_only=True) if row[0] is not None]
         cur.executemany("""
@@ -903,9 +910,9 @@ class LocalDB():
 
         # Import author data
         print('Resolving authors...')
-        with path('mpcereform.spreadsheets', 'author_person.xlsx') as p:
-            author_person = load_workbook(p, read_only = True, keep_vba = False)
-            print(f'Author-agent assignments loaded from {p}')
+        with path('mpcereform.spreadsheets', 'author_person.xlsx') as pth:
+            author_person = load_workbook(pth, read_only=True, keep_vba=False)
+            print(f'Author-agent assignments loaded from {pth}')
         # Get list of all authors who already have agent codes
         assigned_authors = []
         for row in author_person['author_person'].iter_rows(min_row=2, values_only=True):
@@ -926,7 +933,7 @@ class LocalDB():
         cur.executemany("""
             INSERT INTO mpce.author_agent
             VALUES (%s, %s)
-        """, seq_params = assigned_authors)
+        """, seq_params=assigned_authors)
         self.conn.commit()
         print(f'{cur.rowcount} authors with agent_codes found in spreadsheet.')
 
@@ -943,8 +950,8 @@ class LocalDB():
         unassigned_auths = {code:name for name, code in cur.fetchall()}
         # Get unique names, and assign agent_codes
         unique_names = set(unassigned_auths.values())
-        n = len(unique_names)
-        new_agent_codes = self._get_code_sequence('mpce.agent','agent_code', n, cur)
+        num = len(unique_names)
+        new_agent_codes = self._get_code_sequence('mpce.agent', 'agent_code', num, cur)
         name_code = {name: code for name, code in zip(
             unique_names, new_agent_codes)}
         cur.executemany("""
@@ -957,10 +964,9 @@ class LocalDB():
             INSERT INTO mpce.author_agent (author_code, agent_code)
             VALUES (%s, %s)
         """, seq_params=auth_agent)
-
         print(f'{cur.rowcount} authors assigned new agent_codes...')
         self.conn.commit()
-        # Now import authorship data 
+        # Now import authorship data
         cur.execute("""
             INSERT INTO mpce.edition_author (
                 edition_code, author, author_type, certain
@@ -1040,12 +1046,12 @@ class LocalDB():
         """)
 
         # New clients in consignments workbook
-        with path('mpcereform.spreadsheets', 'consignments.xlsx') as p:
-            print(f'Scanning {p} ...')
-            consignments = load_workbook(p, read_only=True, keep_vba=False)
-        consignment_clients  = {}
+        with path('mpcereform.spreadsheets', 'consignments.xlsx') as pth:
+            print(f'Scanning {pth} ...')
+            consignments = load_workbook(pth, read_only=True, keep_vba=False)
+        consignment_clients = {}
         for row in consignments['People final'].iter_rows(min_row=2, values_only=True):
-            if type(row[3]) != str or type(row[2]) != str:
+            if isinstance(row[3], str) or ~isinstance(row[2], str):
                 continue
 
             # Split codes and names for multi-person cells
@@ -1067,19 +1073,19 @@ class LocalDB():
             )
             VALUES (%s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE mpce.all_clients.notes = CONCAT(IFNULL(mpce.all_clients.notes, ''), ' Confiscations notes: ', VALUES(notes))
-        """, seq_params = consignment_clients.values())
+        """, seq_params=consignment_clients.values())
 
         # New clients in permission simple
-        with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as p:
-            print(f'Scanning {p} ...')
-            per_simp = load_workbook(p, read_only=True, keep_vba=False)
+        with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as pth:
+            print(f'Scanning {pth} ...')
+            per_simp = load_workbook(pth, read_only=True, keep_vba=False)
         cur.executemany("""
             INSERT INTO mpce.all_clients (
                 client_code, name, alt_name, gender, prof_codes, place_codes, notes
             )
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE mpce.all_clients.notes = CONCAT(IFNULL(mpce.all_clients.notes, ''), ' Permission simple notes: ', VALUES(notes))
-        """, [(r[0], r[1], r[2], r[3], r[5], r[7], r[8]) 
+        """, [(r[0], r[1], r[2], r[3], r[5], r[7], r[8])
               for r in per_simp['Clients'].iter_rows(min_row=2, max_row=249, values_only=True)])
         self.conn.commit()
         cur.execute('SELECT COUNT(client_code) FROM mpce.all_clients')
@@ -1120,7 +1126,7 @@ class LocalDB():
         for row in new_stn_clients['clients_without_person_codes'].iter_rows(min_row=2, values_only=True):
             client_code = row[0]
             client_name = row[1]
-            if row[2] == 'Y': 
+            if row[2] == 'Y':
                 corporate = False
             elif row[3] == 'Y':
                 corporate = True
@@ -1149,7 +1155,7 @@ class LocalDB():
 
         # Generate new agent codes
         # The XOR allows the creation of new agent_codes for clients
-        # that are linked to an agent of a different type to themselves. 
+        # that are linked to an agent of a different type to themselves.
         cur.execute("""
             SELECT
                 ac.client_code, ac.name, ac.alt_name,
@@ -1160,7 +1166,7 @@ class LocalDB():
                     ON ac.client_code = ca.client_code
                 LEFT JOIN mpce.agent AS a
                     ON ca.agent_code = a.agent_code
-            WHERE 
+            WHERE
                 (
                     ca.agent_code IS NULL OR
                     (ac.corporate XOR a.corporate_entity)
@@ -1216,7 +1222,7 @@ class LocalDB():
                 agent_code, name, other_names, sex, corporate_entity, title
             )
             VALUES (%s, %s, %s, %s, %s, %s)
-        """, seq_params = processed_agents)
+        """, seq_params=processed_agents)
         print(f'{cur.rowcount} new agents added to `mpce.agent`.')
         self.conn.commit()
 
@@ -1241,7 +1247,7 @@ class LocalDB():
         cur.executemany("""
             INSERT INTO mpce.agent_address (agent_code, place_code)
             VALUES (%s, %s)
-        """, seq_params = new_place_assigns)
+        """, seq_params=new_place_assigns)
         print(f'{cur.rowcount} addresses imported from new datasets.')
         self.conn.commit()
 
@@ -1456,13 +1462,13 @@ class LocalDB():
                     ON ea.author_type = at.ID
             GROUP BY ea.author_type
         """)
-        for auth_type, n in cur.fetchall():
+        for auth_type, num in cur.fetchall():
             if auth_type is None:
                 continue
             if auth_type in {'Primary', 'Secondary'}:
-                print(f'     {n} {auth_type} authors')
+                print(f'     {num} {auth_type} authors')
             else:
-                print(f'     {n} {auth_type}s')
+                print(f'     {num} {auth_type}s')
 
         print('')
 
@@ -1520,14 +1526,14 @@ class LocalDB():
         cur.close()
 
     # Utility methods
-    def _get_code_sequence(self, table, column, n, cursor = None):
+    def _get_code_sequence(self, table, column, num, cursor=None):
         """Return a list of the next n free codes.
 
         Arguments:
         ==========
             table (str): name of table to be queried
             column (str): name of column to be queried
-            n (int): number of new ids to be generated
+            num (int): number of new ids to be generated
             cursor (MySQLCursor): a cursor, if you don't wish to create a new one
 
         Returns:
@@ -1565,7 +1571,7 @@ class LocalDB():
         next_id = max(codes) + 1
 
         # Return list of codes
-        return [frame[:-len(str(id))] + str(id) for id in range(next_id, next_id + n)]
+        return [frame[:-len(str(id))] + str(id) for id in range(next_id, next_id + num)]
 
     def _import_spreadsheet_agents(self, table, worksheet, cursor, text_col, code_col):
         """Custom method for consignments workbook."""
@@ -1587,7 +1593,7 @@ class LocalDB():
         print(f'{cursor.rowcount} agency relations inserted into `{table}`.')
         self.conn.commit()
 
-    def _get_auto_increment(self, table, column, cur = None):
+    def _get_auto_increment(self, table, column, cur=None):
         """Returns the frame and next id value for the nominated id column."""
         if cur is None:
             cur = self.conn.cursor()
@@ -1609,4 +1615,3 @@ class LocalDB():
         frame = frame_rgx.search(ids[0][0]).group(0)
 
         return next_id, frame
-
