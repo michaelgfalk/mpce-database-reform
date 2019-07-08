@@ -1355,9 +1355,9 @@ class LocalDB():
 
         # Get collector and censor data from consignments workbook
         self._import_spreadsheet_agents(
-            'all_collectors', consignments['Confiscations master'], cur, 'X', 'Z')
+            'all_collectors', consignments['Confiscations master'], cur, 'Y', 'Z')
         self._import_spreadsheet_agents(
-            'all_censors', consignments['Confiscations master'], cur, 'T', 'V')
+            'all_censors', consignments['Confiscations master'], cur, 'U', 'V')
         # Splice into consignment table
         cur.execute("""
             UPDATE mpce.consignment AS cons
