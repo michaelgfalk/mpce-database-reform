@@ -84,6 +84,15 @@ class LocalDB():
         'Sens': 'cl2067'
     }
 
+    STRING_IDS = {
+        'work': 'work_code',
+        'edition': 'edition_code',
+        'keyword': 'keyword_code',
+        'place': 'place_code',
+        'agent': 'agent_code',
+        'tag': 'tag_code'
+    }
+
     def __init__(self, user='root', host='127.0.0.1', password=None):
         self.conn = mysql.connect(user=user, host=host, password=password)
 
@@ -1479,12 +1488,39 @@ class LocalDB():
         # Finish
         cur.close()
 
-    def build_indexes(self):
-        """Builds key indexes for common queries."""
+    def create_triggers(self):
+        """Creates triggers to generate new ids on tables with string codes."""
 
-        # QUERY: add foreign key constraints at this stage?
+        print('Building triggers to generate new unique codes.')
 
-        pass #pylint:disable=unnecessary-pass;
+        for table, column in self.STRING_IDS.items():
+            self._build_index_trigger(table, column)
+            print(f'Trigger increment_{table} created on `mpce.{table}`.')
+
+    def _build_index_trigger(self, table, column):
+        """Creates a trigger for the primary key column of a table with string id."""
+
+        cur = self.conn.cursor()
+
+        cur.execute('USE mpce')
+        # Auto-increment edition_code
+        next_id, prefix, padding = self._get_auto_increment(table, column, cur)
+        cur.execute(f"""
+            CREATE TABLE _{table}_id (
+                id INT AUTO_INCREMENT PRIMARY KEY
+            ) AUTO_INCREMENT = {next_id}
+        """)
+        cur.execute(f"""
+            CREATE TRIGGER increment_{table}
+            BEFORE INSERT ON {table} FOR EACH ROW
+            BEGIN
+                INSERT INTO _{table}_id VALUES (NULL);
+                SET NEW.{column} = CONCAT('{prefix}', LPAD(LAST_INSERT_ID(), {padding}, '0'));
+            END
+        """)
+
+        self.conn.commit()
+        cur.close()
 
     def summarise(self):
         """Outputs summary statistics about the database."""
@@ -1595,7 +1631,7 @@ class LocalDB():
 
         # Regexes
         num_extr_rgx = re.compile(r'[1-9]\d*') # Extract numerica part of id
-        frame_rgx = re.compile(r'[a-z]+(?=0)') # To find frame
+        frame_rgx = re.compile(r'[a-z]') # To find frame
 
         # Get a cursor
         if cursor is not None:
@@ -1658,7 +1694,7 @@ class LocalDB():
 
         # Regexes
         num_extr_rgx = re.compile(r'[1-9]\d*') # Extract numerical part of id
-        frame_rgx = re.compile(r'[a-z]+(?=0)') # To find frame
+        prefix_rgx = re.compile(r'[a-z]+') # To find frame
 
         cur.execute(f'SELECT {column} FROM {table}')
         ids = cur.fetchall()
@@ -1669,7 +1705,9 @@ class LocalDB():
 
         # Get the frame from any of the values
         # For legacy reasons, some of these id columns have different frames
-        # This function looks at the first value, so gets the original frame
-        frame = frame_rgx.search(ids[0][0]).group(0)
+        # This function gets the latest value inserted in the table
+        prefix = prefix_rgx.search(ids[0][0]).group(0)
 
-        return next_id, frame
+        padding = max([len(x) for (x,) in ids]) - len(prefix)
+
+        return next_id, prefix, padding

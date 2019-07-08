@@ -42,6 +42,10 @@ def main():
     print('======================\n')
     db.resolve_agents()
 
+    print('\nADDING ADDITIONAL STRUCTURE TO DATABASE')
+    print('======================\n')
+    db.create_triggers()
+
     db.summarise()
 
 if __name__ == '__main__':

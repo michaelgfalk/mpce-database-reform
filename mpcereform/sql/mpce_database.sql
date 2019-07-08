@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS `edition` ( -- From manuscript_books_editions [books 
 	The data type of `edition_code` is now CHAR(12), a change from CHAR(9) in the
 	original STN database.
 	*/
-	`edition_code` CHAR(12) NOT NULL,
+	`edition_code` CHAR(12) NOT NULL DEFAULT 'new',
 	`work_code` CHAR(12),
 	`edition_status` VARCHAR(255),
 	`edition_type` VARCHAR(255),
