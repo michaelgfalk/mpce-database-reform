@@ -59,6 +59,8 @@ def convert_colname(colname):
     """Converts Excel column letter into python idx."""
 
     letters = [letter for letter in colname]
+    # Reverse for later loop
+    letters.reverse()
 
     # Initialise total
     total = 0
@@ -66,6 +68,9 @@ def convert_colname(colname):
     # Add letters according to their place value
     # NB: It's a base 26 number system
     for i, letter in enumerate(letters):
-        total += LETTER_VALUES[letter] * (26 ** i)
+        if i == 0:
+            total += LETTER_VALUES[letter]
+        else:
+            total += (LETTER_VALUES[letter] + 1) * (26 ** i)
 
     return total
