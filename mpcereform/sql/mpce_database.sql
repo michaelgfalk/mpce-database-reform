@@ -268,7 +268,7 @@ CREATE TABLE IF NOT EXISTS `edition_author` ( -- From manuscript_books_authors
 	`edition_code` CHAR(12) NOT NULL,
 	`author` CHAR(8) NOT NULL, -- Person code of the author
 	`author_type` int NOT NULL,
-	`certain` bit(1),
+	`certain` INT,
 	PRIMARY KEY(`edition_code`, `author`, `author_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
@@ -602,7 +602,7 @@ CREATE TABLE IF NOT EXISTS `confiscation` ( -- No data as yet
 CREATE TABLE IF NOT EXISTS `stamping` ( -- From manuscript_events
 	`ID` INT NOT NULL AUTO_INCREMENT, -- PK [ID]
 	`stamped_edition` CHAR(12) NOT NULL, -- Which edition was stamped? [ID_EditionName] (edition_code)
-	`permitted_dealer` CHAR(9) NOT NULL, -- Who received the permission to sell? [ID_DealerName] (agent_code)
+	`permitted_dealer` CHAR(9), -- Who received the permission to sell? [ID_DealerName] (agent_code)
 	`attending_inspector` CHAR(9), -- Who was the inspector responsible? [ID_AgentA] (agent_code)
 	`attending_adjoint` CHAR(9), -- Who was the attending adjoint? [ID_AgentB] (agent_code)
 	`stamped_at_place` CHAR(5), -- Where was the edition stamped? [ID_PlaceName] (place_code)

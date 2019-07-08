@@ -10,7 +10,7 @@ from uuid import uuid1
 import mysql.connector as mysql
 from openpyxl import load_workbook
 
-from mpcereform.utils import parse_date
+from mpcereform.utils import parse_date, convert_colname
 
 class LocalDB():
     """Class for managing connection to database server"""
@@ -569,7 +569,7 @@ class LocalDB():
                 cust_reg_ms = int(row[3])
             except ValueError:
                 cust_reg_ms = None
-            
+
             if isinstance(row[9], str):
                 if row[9].startswith('y'):
                     acquit = 'yes'
@@ -626,11 +626,11 @@ class LocalDB():
 
         # Import concerned agents for each consignment
         self._import_spreadsheet_agents(
-            'mpce.consignment_addressee', consignments['Confiscations master'], cur, 10, 12)
+            'mpce.consignment_addressee', consignments['Confiscations master'], cur, 'K', 'M')
         self._import_spreadsheet_agents(
-            'mpce.consignment_signatory', consignments['Confiscations master'], cur, 27, 29)
+            'mpce.consignment_signatory', consignments['Confiscations master'], cur, 'AB', 'AD')
         self._import_spreadsheet_agents(
-            'mpce.consignment_handling_agent', consignments['Confiscations master'], cur, 17, 18)
+            'mpce.consignment_handling_agent', consignments['Confiscations master'], cur, 'R', 'S')
 
         # Import permission simple
         with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as pth:
@@ -731,8 +731,20 @@ class LocalDB():
             comdemn = load_workbook(pth, read_only=True, keep_vba=False)
             print(f'Importing condemnation data from {pth} ...')
 
-        condemn_data = [row for row in comdemn['Sheet1'].iter_rows(
-            min_row=2, max_row=114, max_col=6, values_only=True)]
+        condemn_data = []
+        for row in comdemn['Sheet1'].iter_rows(
+                min_row=2, max_row=114, max_col=6, values_only=True):
+            folio, title, notes, institution_text, date, other_judgment = row
+
+            # Parse dates and split when appropriate
+            for date in date.split(';'):
+                date = date.strip()
+                parts = date.split('/')
+                if len(parts) > 3:
+                    date = None
+                else:
+                    date = f'{parts[2]}-{parts[1]}-{parts[0]}'
+                condemn_data.append((folio, title, notes, institution_text, date, other_judgment))
 
         cur.executemany("""
             INSERT INTO mpce.condemnation (
@@ -761,6 +773,7 @@ class LocalDB():
 
             # Reformat date
             date = date.replace('?', '0')
+            date = date.replace(' ', '')
             day = date[0:2]
             month = date[3:5]
             year = date[6:10]
@@ -892,6 +905,7 @@ class LocalDB():
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, people)
         print(f'{cur.rowcount} agents imported from `manuscripts.people` into `mpce.agent`.')
+        self.conn.commit()
 
         # Get client-agent data from STN database
         print('Importing stn client-agent relationships...')
@@ -901,6 +915,7 @@ class LocalDB():
             FROM manuscripts.clients_people
         """)
         print(f'{cur.rowcount} relationships inserted into `mpce.stn_client_agent`.')
+        self.conn.commit()
 
         # Import agent metadata
         cur.execute("""
@@ -917,6 +932,7 @@ class LocalDB():
             'Professions and assignments imported from `manuscripts.professions` '
             'and `manuscripts.people_professions`.'
         ))
+        self.conn.commit()
 
         # The permission simple sheet contains some new professions
         with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as pth:
@@ -1006,6 +1022,7 @@ class LocalDB():
                     ON ba.author_code = aa.author_code
                 LEFT JOIN mpce.author_type AS at
                     ON ba.author_type LIKE at.type
+            WHERE aa.agent_code IS NOT NULL
         """)
         print(f'All authors resolved into agents. {cur.rowcount} authorship attributions imported into `mpce.edition_author`.')
         self.conn.commit()
@@ -1080,7 +1097,7 @@ class LocalDB():
             consignments = load_workbook(pth, read_only=True, keep_vba=False)
         consignment_clients = {}
         for row in consignments['People final'].iter_rows(min_row=2, values_only=True):
-            if isinstance(row[3], str) or ~isinstance(row[2], str):
+            if not isinstance(row[3], str) or not isinstance(row[2], str):
                 continue
 
             # Split codes and names for multi-person cells
@@ -1140,9 +1157,9 @@ class LocalDB():
             INSERT INTO mpce.client_agent
             SELECT sca.client_code, sca.agent_code
             FROM mpce.stn_client_agent AS sca
-                LEFT JOIN mpce.stn_client AS sc
+                LEFT JOIN manuscripts.clients AS sc
                     ON sca.client_code = sc.client_code
-            WHERE sc.partnership IS FALSE
+            WHERE sc.partnership IS NOT TRUE
         """)
 
         # Import new agents from `clients_without_person_codes.xlsx`
@@ -1171,11 +1188,13 @@ class LocalDB():
             VALUES (%s, %s, %s, %s)
         """, seq_params=[(code, name, corp, notes) for code, (client, name, corp, notes) in zip(new_cl_agts, new_cl_ls)])
         print(f'{cur.rowcount} new agents created.')
+        self.conn.commit()
         cur.executemany("""
             INSERT INTO mpce.stn_client_agent (client_code, agent_code)
             VALUES (%s, %s)
         """, seq_params=[(client, code) for code, (client, name, corp, notes) in zip(new_cl_agts, new_cl_ls)])
         print(f'{cur.rowcount} new relationships inserted into `stn_client_agent`')
+        self.conn.commit()
         cur.executemany("""
             INSERT INTO mpce.client_agent (client_code, agent_code)
             VALUES (%s, %s)
@@ -1183,8 +1202,8 @@ class LocalDB():
         self.conn.commit()
 
         # Generate new agent codes
-        # The XOR allows the creation of new agent_codes for clients
-        # that are linked to an agent of a different type to themselves.
+        # NB: The problem of corporate entities having person codes assigned to them
+        # has already been dealt with above.
         cur.execute("""
             SELECT
                 ac.client_code, ac.name, ac.alt_name,
@@ -1196,10 +1215,7 @@ class LocalDB():
                 LEFT JOIN mpce.agent AS a
                     ON ca.agent_code = a.agent_code
             WHERE
-                (
-                    ca.agent_code IS NULL OR
-                    (ac.corporate XOR a.corporate_entity)
-                )
+                ca.agent_code IS NULL
                 AND ac.name NOT LIKE 'null'
         """)
         new_agents = cur.fetchall()
@@ -1211,6 +1227,7 @@ class LocalDB():
             INSERT INTO mpce.client_agent (client_code, agent_code)
             VALUES (%s, %s)
         """, seq_params=[(client[0], code) for client, code in zip(new_agents, code_list)])
+        self.conn.commit()
 
         # Process new_agent data:
         processed_agents = []
@@ -1265,6 +1282,7 @@ class LocalDB():
                     ON addr.client_code = ca.client_code
         """)
         print(f'{cur.rowcount} addresses imported from `manuscripts.clients_addresses`.')
+        self.conn.commit()
 
         # Using generated python list
         # I tried to do this by creating a temporary index on agent_code and place_code,
@@ -1332,9 +1350,9 @@ class LocalDB():
 
         # Get collector and censor data from consignments workbook
         self._import_spreadsheet_agents(
-            'all_collectors', consignments['Confiscations master'], cur, 24, 25)
+            'all_collectors', consignments['Confiscations master'], cur, 'X', 'Z')
         self._import_spreadsheet_agents(
-            'all_censors', consignments['Confiscations master'], cur, 20, 21)
+            'all_censors', consignments['Confiscations master'], cur, 'T', 'V')
         # Splice into consignment table
         cur.execute("""
             UPDATE mpce.consignment AS cons
@@ -1605,16 +1623,22 @@ class LocalDB():
     def _import_spreadsheet_agents(self, table, worksheet, cursor, text_col, code_col):
         """Custom method for consignments workbook."""
         agents = []
+
+        text_col = convert_colname(text_col)
+        code_col = convert_colname(code_col)
+
         for row in worksheet.iter_rows(min_row=2, values_only=True):
-            agent_id = row[0]
+            consignment_id = row[0]
             names, codes = row[text_col], row[code_col]
-            if isinstance(names, str) or ~isinstance(codes, str):
+            if not isinstance(names, str) or not isinstance(codes, str):
+                continue
+            elif names.lower().startswith('null'):
                 continue
             else:
                 names = names.split(';')
                 codes = codes.split(';')
             for name, code in zip(names, codes):
-                agents.append((agent_id, code.strip(), name.strip()))
+                agents.append((consignment_id, code.strip(), name.strip()))
         cursor.executemany((
             f'INSERT INTO {table} (consignment, agent_code, text) '
             'VALUES (%s, %s, %s)'
