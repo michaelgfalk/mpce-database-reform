@@ -63,10 +63,9 @@ def convert_colname(colname):
     # Initialise total
     total = 0
 
-    # Add 26 for each prefixing letter
-    total += (len(letters) -1) * 26
-
-    # Add value of final letter
-    total += LETTER_VALUES[letters[-1]]
+    # Add letters according to their place value
+    # NB: It's a base 26 number system
+    for i, letter in enumerate(letters):
+        total += LETTER_VALUES[letter] * (26 ** i)
 
     return total
