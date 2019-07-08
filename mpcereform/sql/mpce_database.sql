@@ -152,9 +152,11 @@ CREATE TABLE IF NOT EXISTS tag (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS work_keyword (
+	`ID` INT AUTO_INCREMENT,
 	`work_code` CHAR(12),
 	`keyword_code` CHAR(5), 
-	PRIMARY KEY (`work_code`,`keyword_code`)
+	PRIMARY KEY (`ID`),
+	UNIQUE INDEX(`work_code`,`keyword_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*
@@ -162,15 +164,19 @@ Unfortunately these two association tables were created using the keyword
 names, rather than the keyword codes... This will need to be transformed.
 */
 CREATE TABLE IF NOT EXISTS keyword_free_association (
-	keyword_1 CHAR(5),
-	keyword_2 CHAR(5),
-	PRIMARY KEY (`keyword_1`, `keyword_2`)
+	`ID` INT AUTO_INCREMENT,
+	`keyword_1` CHAR(5),
+	`keyword_2` CHAR(5),
+	PRIMARY KEY (`ID`),
+	UNIQUE INDEX(`keyword_1`,`keyword_2`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS keyword_tree_association (
-	keyword_1 CHAR(5),
-	keyword_2 CHAR(5),
-	PRIMARY KEY (`keyword_1`, `keyword_2`)
+	`ID` INT AUTO_INCREMENT,
+	`keyword_1` CHAR(5),
+	`keyword_2` CHAR(5),
+	PRIMARY KEY (`ID`),
+	UNIQUE INDEX(`keyword_1`,`keyword_2`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*
@@ -214,9 +220,11 @@ CREATE TABLE IF NOT EXISTS `agent` ( -- From `people`
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `is_member_of` ( -- New table
+	`ID` INT AUTO_INCREMENT,
 	`member` CHAR(8) NOT NULL,				-- agent_code of the member
 	`corporate_entity` CHAR(8) NOT NULL,	-- agent_code of the agent they are a member of
-	PRIMARY KEY (`member`, `corporate_entity`)
+	PRIMARY KEY (`ID`),
+	UNIQUE INDEX(`member`,`corporate_entity`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 -- Other types of person, and additional metadata
@@ -238,15 +246,19 @@ CREATE TABLE IF NOT EXISTS `stn_client` ( -- From clients
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_client_agent` ( -- From clients_people
+	`ID` INT AUTO_INCREMENT,
 	`client_code` CHAR(6) NOT NULL,
 	`agent_code` CHAR(8) NOT NULL,
-	PRIMARY KEY (`client_code`, `agent_code`)
+	PRIMARY KEY (`ID`),
+	UNIQUE INDEX(`client_code`, `agent_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_client_profession` ( -- From clients_professions
+	`ID` INT AUTO_INCREMENT,
 	`client_code` CHAR(6) NOT NULL,
 	`profession_code` CHAR(6) NOT NULL,
-	PRIMARY KEY(`client_code`, `profession_code`)
+	PRIMARY KEY(`ID`),
+	UNIQUE INDEX(`client_code`, `profession_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `profession` ( -- From professions
@@ -259,17 +271,20 @@ CREATE TABLE IF NOT EXISTS `profession` ( -- From professions
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `agent_profession` ( -- From people_professions
+	`ID` INT AUTO_INCREMENT,
 	`agent_code` CHAR(8) NOT NULL,
 	`profession_code` CHAR(5) NOT NULL,
-	PRIMARY KEY (`agent_code`, `profession_code`)
+	PRIMARY KEY (`ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `edition_author` ( -- From manuscript_books_authors
+	`ID` INT AUTO_INCREMENT,
 	`edition_code` CHAR(12) NOT NULL,
 	`author` CHAR(8) NOT NULL, -- Person code of the author
 	`author_type` int NOT NULL,
 	`certain` INT,
-	PRIMARY KEY(`edition_code`, `author`, `author_type`)
+	PRIMARY KEY(`ID`),
+	UNIQUE INDEX(`edition_code`,`author`,`author_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS author_type ( -- New table
@@ -343,29 +358,37 @@ normalisation.
 */
 
 CREATE TABLE IF NOT EXISTS `stn_edition_call_number` ( -- From books_call_numbers
-  `edition_code` CHAR(9) NOT NULL, -- Formerly book_code
-  `call_number` VARCHAR(255) NOT NULL,
-  PRIMARY KEY (`edition_code`,`call_number`)
+	`ID` INT AUTO_INCREMENT,
+	`edition_code` CHAR(9) NOT NULL, -- Formerly book_code
+	`call_number` VARCHAR(255) NOT NULL,
+	PRIMARY KEY (`ID`),
+	UNIQUE INDEX(`edition_code`, `call_number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_edition_catalogue` ( -- From books_stn_catalogues
-  `edition_code` CHAR(9) NOT NULL, -- Formerly book_code
-  `catalogue` VARCHAR(255) NOT NULL,
-  PRIMARY KEY (`edition_code`,`catalogue`)
+	`ID` INT AUTO_INCREMENT,
+	`edition_code` CHAR(9) NOT NULL, -- Formerly book_code
+	`catalogue` VARCHAR(255) NOT NULL,
+	PRIMARY KEY (`ID`),
+	UNIQUE INDEX(`edition_code`, `catalogue`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_client_correspondence_ms` ( -- From clients_correspondence_manuscripts
+	`ID` INT AUTO_INCREMENT,
 	`client_code` CHAR(6) NOT NULL,
 	`position` INT NOT NULL,
 	`manuscript_numbers` VARCHAR(500),
-	PRIMARY KEY (`client_code`, `position`)
+	PRIMARY KEY (`ID`),
+	UNIQUE INDEX(`client_code`,`position`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_client_correspondence_place` ( -- From clients_correspondence_places
+	`ID` INT AUTO_INCREMENT,
 	`client_code` CHAR(6) NOT NULL,
 	`place_code` CHAR(5) NOT NULL,
 	`from_date` VARCHAR(255), -- To be validated at another time
-	PRIMARY KEY(`client_code`, `place_code`)
+	PRIMARY KEY(`ID`),
+	UNIQUE INDEX(`client_code`,`place_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*
@@ -786,26 +809,33 @@ CREATE TABLE IF NOT EXISTS `stn_order` ( -- From orders
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_order_agent` ( -- From orders_agents
+	`ID` INT AUTO_INCREMENT,
 	`order_code` CHAR(9) NOT NULL,
 	`client_code` CHAR(6) NOT NULL,
 	`place_code` CHAR(5),
-	PRIMARY KEY(`order_code`, `client_code`)
+	PRIMARY KEY(`ID`),
+	UNIQUE INDEX(`order_code`,`client_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_order_sent_via` ( -- From orders_sent_via
+	`ID` INT AUTO_INCREMENT,
 	`order_code` CHAR(9) NOT NULL,
 	`client_code` CHAR(6) NOT NULL,
 	`place_code` CHAR(5),
-	PRIMARY KEY(`order_code`, `client_code`)
+	PRIMARY KEY(`ID`),
+	UNIQUE INDEX(`order_code`,`client_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_order_sent_via_place` ( -- From orders_sent_via_place
+	`ID` INT AUTO_INCREMENT,
 	`order_code` CHAR(9) NOT NULL,
 	`place_code` CHAR(5) NOT NULL,
-	PRIMARY KEY(`order_code`, `place_code`)
+	PRIMARY KEY(`ID`),
+	UNIQUE INDEX(`order_code`,`place_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_transaction` ( -- From transactions
+	`ID` INT AUTO_INCREMENT,
 	`transaction_code` CHAR(9) NOT NULL,
 	`order_code` CHAR(9) NOT NULL,
 	`page_or_folio_numbers` VARCHAR(50),
@@ -817,15 +847,18 @@ CREATE TABLE IF NOT EXISTS `stn_transaction` ( -- From transactions
 	`stn_abbreviated_title` VARCHAR(600),
 	`total_number_of_volumes` INT,
 	`notes` VARCHAR(4000),
-	PRIMARY KEY(`transaction_code`, `order_code`) -- Not sure why the composite index
+	PRIMARY KEY(`ID`),
+	UNIQUE INDEX(`order_code`,`transaction_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_transaction_volumes_exchanged` ( -- From transactions_volumes_exchanged
+	`ID` INT AUTO_INCREMENT,
 	`transaction_code` CHAR(9) NOT NULL,
 	`order_code` CHAR(9) NOT NULL,
 	`volume_number` INT NOT NULL,
 	`number_of_copies` INT,
-	PRIMARY KEY(`transaction_code`, `order_code`, `volume_number`)
+	PRIMARY KEY(`ID`),
+	UNIQUE INDEX(`transaction_code`,`order_code`,`volume_number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `stn_darnton_sample_order` ( -- From http://www.robertdarnton.org/sites/default/files/CommandesLibrairesfrancais.xls

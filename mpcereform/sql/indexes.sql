@@ -24,3 +24,9 @@ process.
 
 */
 
+/*
+
+1. UNIQUE INDEXES FOR VALIDATING JOINS
+
+*/
+

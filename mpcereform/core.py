@@ -16,17 +16,17 @@ class LocalDB():
     """Class for managing connection to database server"""
 
     UNCHANGED_TABLES = {
-        # Tables identical to their STN counterparts
+        # All these tables have a new auto_incrementing ID column, except for 'stn_order'
         'mpce.stn_client_profession': 'manuscripts.clients_professions',
         'mpce.stn_edition_call_number': 'manuscripts.books_call_numbers',
         'mpce.stn_edition_catalogue': 'manuscripts.books_stn_catalogues',
         'mpce.stn_client_correspondence_ms': 'manuscripts.clients_correspondence_manuscripts',
         'mpce.stn_client_correspondence_place': 'manuscripts.clients_correspondence_places',
-        'mpce.stn_order': 'manuscripts.orders',
         'mpce.stn_order_agent': 'manuscripts.orders_agents',
         'mpce.stn_order_sent_via': 'manuscripts.orders_sent_via',
         'mpce.stn_order_sent_via_place': 'manuscripts.orders_sent_via_place',
-        'mpce.stn_transaction_volumes_exchanged': 'manuscripts.transactions_volumes_exchanged'
+        'mpce.stn_transaction_volumes_exchanged': 'manuscripts.transactions_volumes_exchanged',
+        'mpce.stn_order': 'manuscripts.orders'
     }
 
     TRANSACTION_CODING = {
@@ -327,10 +327,15 @@ class LocalDB():
 
         cur = self.conn.cursor()
 
-        # Port unchanged tables across
+        # Port tables with new IDs across
         print('Transferring unchanged STN data...')
         for mpce, man in self.UNCHANGED_TABLES.items():
-            cur.execute(f'INSERT INTO {mpce} SELECT * FROM {man}')
+            # Get name of columns
+            cur.execute(f'DESCRIBE {mpce}')
+            table_info = cur.fetchall()
+            cols = [row[0] for row in table_info if row[0] != 'ID']
+            cols = ', '.join(cols)
+            cur.execute(f'INSERT INTO {mpce} ({cols}) SELECT * FROM {man}')
             print(f'Data from `{man}` transferred to `{mpce}`.')
         self.conn.commit()
 
@@ -910,7 +915,7 @@ class LocalDB():
         # Get client-agent data from STN database
         print('Importing stn client-agent relationships...')
         cur.execute("""
-            INSERT INTO mpce.stn_client_agent
+            INSERT INTO mpce.stn_client_agent (client_code, agent_code)
             SELECT client_code, CONCAT('id00', RIGHT(person_code, 4))
             FROM manuscripts.clients_people
         """)
@@ -924,7 +929,7 @@ class LocalDB():
             FROM manuscripts.professions
         """)
         cur.execute("""
-            INSERT INTO mpce.agent_profession
+            INSERT INTO mpce.agent_profession (agent_code, profession_code)
             SELECT CONCAT('id00', RIGHT(person_code, 4)), profession_code
             FROM manuscripts.people_professions
         """)
@@ -1029,7 +1034,7 @@ class LocalDB():
 
         # Apply new profession code to all authors
         cur.execute("""
-            INSERT IGNORE INTO mpce.agent_profession
+            INSERT IGNORE INTO mpce.agent_profession (agent_code, profession_code)
             SELECT
                 ea.author,
                 CASE WHEN ea.author_type = 1 THEN 'pf014'
@@ -1300,7 +1305,7 @@ class LocalDB():
 
         # Assign professions to new agents:
         cur.executemany("""
-            INSERT IGNORE INTO mpce.agent_profession
+            INSERT IGNORE INTO mpce.agent_profession (agent_code, profession_code)
             VALUES (%s, %s)
         """, seq_params=new_prof_assigns)
         print(f'{cur.rowcount} new professions assigned to agents')
