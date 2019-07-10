@@ -1630,8 +1630,8 @@ class LocalDB():
         """
 
         # Regexes
-        num_extr_rgx = re.compile(r'[1-9]\d*') # Extract numerica part of id
-        frame_rgx = re.compile(r'[a-z]') # To find frame
+        num_extr_rgx = re.compile(r'[1-9]\d*') # Extract numerical part of id
+        prefix_rgx = re.compile(r'[a-z]+') # To find frame
 
         # Get a cursor
         if cursor is not None:
@@ -1639,14 +1639,14 @@ class LocalDB():
         else:
             cur = self.conn.cursor()
 
-        # Retrieve agent codes, strip 'id' and leading 0s, convert to int
+        # Get sequence of codes from DB
         cur.execute(f'SELECT {column} FROM {table}')
         codes = cur.fetchall()
 
         # Work out the frame:
-        alpha = frame_rgx.match(codes[0][0]).group(0)
-        n_digits = len(codes[0][0]) - len(alpha)
-        frame = ''.join([alpha] + ['0' for n in range(n_digits)])
+        prefix = prefix_rgx.match(codes[0][0]).group(0)
+        n_digits = len(codes[0][0]) - len(prefix)
+        frame = ''.join([prefix] + ['0' for n in range(n_digits)])
 
         # Extract numeric part of codes
         codes = [int(num_extr_rgx.search(id).group(0))
