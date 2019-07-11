@@ -338,19 +338,19 @@ class LocalDB():
         all_places = set([code for (code,) in cur.fetchall()])
         new_places = []
         for row in consignments['List of new places'].iter_rows(min_row=2, max_row=60,
-                                                                max_col=22, values_only=True):
+                                                                max_col=23, values_only=True):
             if row[0] not in all_places:
                 new_places.append(row)
         cur.executemany("""
             INSERT INTO mpce.place (
                 place_code, name, alternative_names, C18_lower_territory,
                 C18_sovereign_territory, C21_admin, C21_country, geographic_zone,
-                BSR, HRE, IFC, P, HE, HT, WT, PT, PrT, distance_from_neuchatel,
+                BSR, EL, HRE, IFC, P, HE, HT, WT, PT, PrT, distance_from_neuchatel,
                 latitude, longitude, geoname, notes
             )
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s)
+                    %s, %s, %s)
         """, seq_params=new_places)
         print(f'{cur.rowcount} new places imported.')
         self.conn.commit()
