@@ -90,7 +90,8 @@ class LocalDB():
         'keyword': 'keyword_code',
         'place': 'place_code',
         'agent': 'agent_code',
-        'tag': 'tag_code'
+        'tag': 'tag_code',
+        'profession': 'profession_code'
     }
 
     def __init__(self, user='root', host='127.0.0.1', password=None):
@@ -328,6 +329,31 @@ class LocalDB():
             FROM manuscripts.places
         """)
         print(f'{cur.rowcount} places imported into `mpce.place`.')
+        self.conn.commit()
+
+        with path('mpcereform.spreadsheets', 'consignments.xlsx') as pth:
+            print(f'Importing new places from {pth} ...')
+            consignments = load_workbook(pth, read_only=True, keep_vba=False)
+        cur.execute('SELECT place_code FROM mpce.place')
+        all_places = set([code for (code,) in cur.fetchall()])
+        new_places = []
+        for row in consignments['List of new places'].iter_rows(min_row=2, max_row=60,
+                                                                max_col=22, values_only=True):
+            if row[0] not in all_places:
+                new_places.append(row)
+        cur.executemany("""
+            INSERT INTO mpce.place (
+                place_code, name, alternative_names, C18_lower_territory,
+                C18_sovereign_territory, C21_admin, C21_country, geographic_zone,
+                BSR, HRE, IFC, P, HE, HT, WT, PT, PrT, distance_from_neuchatel,
+                latitude, longitude, geoname, notes
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s)
+        """, seq_params=new_places)
+        print(f'{cur.rowcount} new places imported.')
+        self.conn.commit()
 
         self.conn.commit()
 
@@ -575,22 +601,39 @@ class LocalDB():
             print(f'Importing confiscations data from {pth} ...')
             consignments = load_workbook(pth, read_only=True, keep_vba=False)
         insert_params = []
+
+        def remove_nulls(x): return None if isinstance(
+            x, str) and x == 'null' else x
         for row in consignments['Confiscations master'].iter_rows(min_row=2,
                                                                   max_col=45, values_only=True):
 
-            # Process certain columns:
-            try:
-                cust_reg_ms = int(row[3])
-            except ValueError:
-                cust_reg_ms = None
+            if row[0] is None:
+                break
+            
+            row = [remove_nulls(x) for x in row]
 
-            if isinstance(row[9], str):
-                if row[9].startswith('y'):
+            # Process certain columns:
+            cust_reg_ms = row[3]
+            if isinstance(cust_reg_ms, str):
+                try:
+                    cust_reg_ms = int(cust_reg_ms.replace(',',''))
+                except ValueError:
+                    cust_reg_ms = None
+
+            acquit = row[9]
+            if isinstance(acquit, str):
+                if acquit.startswith('y'):
                     acquit = 'yes'
-                if row[9].startswith('no'):
+                if acquit.startswith('no'):
                     acquit = 'no'
+                else:
+                    acquit = None
             else:
-                row[9] = None
+                acquit = None
+
+            or_code = row[34]
+            if isinstance(acquit, str):
+                or_code = or_code[:5]  # can't take more than one code
 
             insert_params.append({
                 'ID': row[0],
@@ -607,7 +650,7 @@ class LocalDB():
                 'acquit': acquit,
                 'stakeholder': row[32],
                 'or_text': row[33],
-                'or_code': row[34][:5], # can't take more than one code
+                'or_code': or_code,
                 'return_name': row[36],
                 'return_agent': row[38],
                 'return_town': row[40],
@@ -948,7 +991,7 @@ class LocalDB():
         ))
         self.conn.commit()
 
-        # The permission simple sheet contains some new professions
+        # The permission simple and confiscations workbooks contain some new professions
         with path('mpcereform.spreadsheets', 'permission_simple.xlsx') as pth:
             print(f'Importing new profession data from {pth}')
             p_simple = load_workbook(pth, read_only=True, keep_vba=False)
@@ -960,7 +1003,21 @@ class LocalDB():
             )
             VALUES (%s, %s, %s, %s)
         """, new_professions)
-        print(f'{cur.rowcount} new professions imported.')
+        print(f'{cur.rowcount} new professions imported from permission simple workbook.')
+        self.conn.commit()
+        with path('mpcereform.spreadsheets', 'consignments.xlsx') as pth:
+            print(f'Importing new profession data from {pth}')
+            consignments = load_workbook(pth, read_only=True, keep_vba=False)
+        new_professions = [row for row in consignments['New professions'].iter_rows(
+            min_row=2, max_row=43, values_only=True) if row[0] is not None]
+        cur.executemany("""
+            INSERT IGNORE INTO mpce.profession (
+                profession_type, profession_code, profession_group, economic_sector
+            )
+            VALUES (%s, %s, %s, %s)
+        """, new_professions)
+        print(
+            f'{cur.rowcount} new professions imported from consignment workbook.')
         self.conn.commit()
 
         # Now all agent_codes (person_codes) have been imported, as have profession codes.
@@ -1110,28 +1167,38 @@ class LocalDB():
             print(f'Scanning {pth} ...')
             consignments = load_workbook(pth, read_only=True, keep_vba=False)
         consignment_clients = {}
-        for row in consignments['People final'].iter_rows(min_row=2, values_only=True):
-            if not isinstance(row[3], str) or not isinstance(row[2], str):
-                continue
+        for row in consignments['People Final'].iter_rows(min_row=2, values_only=True):
+            if not row:
+                break
 
-            # Split codes and names for multi-person cells
-            codes = row[3].split(';')
-            names = row[2].split(';')
+            # Unpack data
+            name, code, notes, title, _, addresses, _, professions, sex, corporate = row[2:12]
 
-            # Get other data (these columns are never split)
-            notes = row[4]
-            title = row[5]
-            place = row[7]
+            # Ensure no trailing whitespace, reduce sex variable
+            if isinstance(name, str):
+                name = name.strip()
+            if isinstance(code, str):
+                code.strip()
+            if isinstance(title, str):
+                title.strip()
+            if isinstance(sex, str):
+                sex = sex[0]
 
-            for code, name in zip(codes, names): # zip() deals with different-length sequences
-                code = code.strip()
-                if code not in consignment_clients:
-                    consignment_clients[code] = (code, name, notes, title, place)
+            # Corporate is a boolean field
+            if corporate == 'yes':
+                corporate = 1
+            elif corporate == 'no':
+                corporate = 0
+            else:
+                corporate = None
+
+            if code not in consignment_clients:
+                consignment_clients[code] = (code, name, notes, title, addresses, professions, sex, corporate)
         cur.executemany("""
             INSERT INTO mpce.all_clients (
-                client_code, name, notes, title, place_codes
+                client_code, name, notes, title, place_codes, prof_codes, gender, corporate
             )
-            VALUES (%s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE mpce.all_clients.notes = CONCAT(IFNULL(mpce.all_clients.notes, ''), ' Confiscations notes: ', VALUES(notes))
         """, seq_params=consignment_clients.values())
 
@@ -1508,7 +1575,7 @@ class LocalDB():
         cur.execute(f"""
             CREATE TABLE _{table}_id (
                 id INT AUTO_INCREMENT PRIMARY KEY
-            ) AUTO_INCREMENT = {next_id}
+            ) AUTO_INCREMENT = {next_id} DEFAULT CHARSET=utf8
         """)
         cur.execute(f"""
             CREATE TRIGGER increment_{table}
@@ -1669,6 +1736,10 @@ class LocalDB():
         code_col = convert_colname(code_col)
 
         for row in worksheet.iter_rows(min_row=2, values_only=True):
+            # break on empty row
+            if not row:
+                break
+
             consignment_id = row[0]
             names, codes = row[text_col], row[code_col]
             if not isinstance(names, str) or not isinstance(codes, str):

@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS `edition` ( -- From manuscript_books_editions [books 
 	`edition` VARCHAR(255),
 	`book_sheets` VARCHAR(255),
 	`known_pirated` BIT DEFAULT 0,
-	`notes` VARCHAR(4000),
+	`notes` TEXT,
 	`research_notes` VARCHAR(1000),
 	`url` VARCHAR(1000),
 	PRIMARY KEY (`edition_code`)
@@ -241,7 +241,7 @@ CREATE TABLE IF NOT EXISTS `stn_client` ( -- From clients
 	`number_of_documents` smallint(6),
 	`first_date` DATE,
 	`last_date` DATE,
-	`notes` VARCHAR(4000),
+	`notes` TEXT,
 	PRIMARY KEY (`client_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
@@ -287,7 +287,7 @@ CREATE TABLE IF NOT EXISTS `edition_author` ( -- From manuscript_books_authors
 	UNIQUE INDEX(`edition_code`,`author`,`author_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-CREATE TABLE IF NOT EXISTS author_type ( -- New table
+CREATE TABLE IF NOT EXISTS `author_type` ( -- New table
 	`id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 	`type` VARCHAR(20),
 	`definition` TEXT
@@ -331,7 +331,7 @@ CREATE TABLE IF NOT EXISTS `place` ( -- From manuscript_places
 	`latitude` DECIMAL(10,8),
 	`longitude` DECIMAL(10,8),
 	`geoname` INT(11),
-	`notes` VARCHAR(1000),
+	`notes` TEXT,
 	PRIMARY KEY (`place_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
@@ -471,16 +471,19 @@ CREATE TABLE IF NOT EXISTS `judgment` ( -- Currently used by confiscation, conde
 INSERT INTO
   `judgment`
 VALUES
-  (1, "Condamné au pilon", "The books were condemned to destruction."),
-  (2, "Rayé de la liste des permissions tacites", "The books were removed from the list of tacitly permitted works."),
-  (3, "Ajouté à la liste des permissions tacites", "The books were added to the list of tacitly permitted works."),
-  (4, "Trouvé sur la liste des permissions tacites", "The books were found on the list of tacitly permitted works."),
-  (5, "A rendre par ordre particulier", "The books were sent on under a particular order."),
-  (6, "A rendre par ordre general", "The books were sent on under a general order."),
-  (7, "A rendre au propriétaire du privilege", "The books were set to the owner of the privilege."),
-  (8, "A attendre par jugemens du Permis", "The books were held, awaiting the judgement of the Permis."),
-  (9, "Une autre", "Some other decision was made."),
-  (10, "Inconnue", "Decision unknown.");
+  (1, "Condamné au pilon", "to be condemned the pulping room in the Bastille."),
+  (2, "Rayé de la liste des permissions tacites", "to be struck from the list of tacitly permitted works."),
+  (3, "Ajouté à la liste des permissions tacites", "to be added to the list of tacitly permitted works."),
+  (4, "Trouvé sur la liste des permissions tacites", "(The books were already) on the list of tacitly permitted works."),
+  (5, "A rendre par ordre particulier", "to be returned by an order specific to this case."),
+  (6, "A rendre par ordre general", "to be returned under a general order."),
+  (7, "A rendre au propriétaire du privilege", "to be sent to the owner of the privilege."),
+  (8, "A attendre par jugemens du Permis", "to await the judgement concerning the permit."),
+  (9, "A rendre à la librairie", "to be sent to the Bureau de la Librairie (the government Office charged with policing the book trade)."),
+  (10, "A renvoyer au libraire étranger par ordre", "to be returned to the foreign-based bookseller [who sent them]."),
+  (11, "A renvoyer au libraire chargé de la distribution", "to be returned to the bookseller entrusted with their distribution."),
+  (12, "Inconnue", "Decision unknown."),
+  (13, "Une autre", "Some other decision was made.");
   
 CREATE TABLE IF NOT EXISTS auction_role ( -- Currently only used for parisian_stock_auction
 	`ID` INT NOT NULL,
@@ -846,7 +849,7 @@ CREATE TABLE IF NOT EXISTS `stn_transaction` ( -- From transactions
 	`edition_code` CHAR(12), -- Old book_code field
 	`stn_abbreviated_title` VARCHAR(600),
 	`total_number_of_volumes` INT,
-	`notes` VARCHAR(4000),
+	`notes` TEXT,
 	PRIMARY KEY(`ID`),
 	UNIQUE INDEX(`order_code`,`transaction_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
