@@ -584,7 +584,8 @@ CREATE TABLE IF NOT EXISTS `consignment_addressee` ( -- New table: owners/addres
 	`consignment` INT, -- The ID of the consignment
 	`agent_code` CHAR(8), -- The ID of the owner/addressee
 	`text` VARCHAR(255), -- The name as it appears in the register
-	PRIMARY KEY (`ID`)
+	PRIMARY KEY (`ID`),
+	UNIQUE INDEX(`consignment`, `agent_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `consignment_signatory` ( -- New table: persons who sign the customs register
@@ -592,7 +593,8 @@ CREATE TABLE IF NOT EXISTS `consignment_signatory` ( -- New table: persons who s
 	`consignment` INT, -- The ID of the consignment
 	`agent_code` CHAR(8), -- The ID of the customs register signatory
 	`text` VARCHAR(255), -- The name as it appears in the register
-	PRIMARY KEY (`ID`)
+	PRIMARY KEY (`ID`),
+	UNIQUE INDEX(`consignment`, `agent_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `consignment_handling_agent` ( -- New table: handling agents of the consignment
@@ -600,7 +602,8 @@ CREATE TABLE IF NOT EXISTS `consignment_handling_agent` ( -- New table: handling
 	`consignment` INT, -- The ID of the consignment
 	`agent_code` CHAR(8), -- The ID of the handling agent
 	`text` VARCHAR(255), -- The name as it appears in the register
-	PRIMARY KEY (`ID`)
+	PRIMARY KEY (`ID`),
+	UNIQUE INDEX(`consignment`, `agent_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS `confiscation` ( -- No data as yet
