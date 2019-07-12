@@ -1321,7 +1321,7 @@ class LocalDB():
             # Process gender
             if gender is not None:
                 if gender.lower().startswith('mixed'):
-                    gender = None
+                    gender = 'B'
                     corporate = True
                 elif gender.lower().startswith('m'):
                     gender = 'M'

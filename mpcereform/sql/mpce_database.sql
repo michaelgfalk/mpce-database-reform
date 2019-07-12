@@ -614,6 +614,7 @@ CREATE TABLE IF NOT EXISTS `confiscation` ( -- No data as yet
   `edition_code` CHAR(12),						/* !FK: edition_code of the book */
   `number` INT(10),								/* number of units confiscated */
   `unit` INT(10),								/* !FK: ID of the relevant units */
+  `binding` VARCHAR(255),						/* How the edition was bound */
   `confiscation_reason` INT(10),				/* !FK: ID of the relevant confiscation_reason */
   `other_reason` VARCHAR(255),					/* If 'une autre' is selected */
   `judgment` INT(10),							/* !FK: ID of the relevant judgment */
