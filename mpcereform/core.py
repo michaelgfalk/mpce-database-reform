@@ -683,7 +683,7 @@ class LocalDB():
 
         # Import concerned agents for each consignment
         self._import_spreadsheet_agents(
-            'mpce.consignment_addressee', consignments['Confiscations master'], cur, 'K', 'M')
+            'mpce.consignment_addressee', consignments['Confiscations master'], cur, 'L', 'M')
         self._import_spreadsheet_agents(
             'mpce.consignment_signatory', consignments['Confiscations master'], cur, 'AB', 'AD')
         self._import_spreadsheet_agents(
