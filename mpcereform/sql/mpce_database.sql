@@ -902,72 +902,73 @@ scope.
 
 */
 
-CREATE TABLE IF NOT EXISTS mmf_work (
-	work_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	uuid CHAR(36) NOT NULL,
-	work_identifier CHAR(12),
-	translation VARCHAR(128),
-	title TEXT,
-	comments TEXT,
-	bur_references TEXT,
-	bur_comments TEXT,
-	original_title TEXT,
-	translation_comments TEXT,
-	description TEXT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-CREATE TABLE IF NOT EXISTS mmf_edition (
-	edition_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	work_id INT,
-	uuid CHAR(36) NOT NULL,
-	work_identifier CHAR(12),
-	ed_identifer CHAR(12),
-	edition_counter CHAR(7),
-	translation VARCHAR(128),
-	author VARCHAR(255),
-	translator VARCHAR(255),
-	short_title VARCHAR(255),
-	long_title TEXT,
-	collection_title TEXT,
-	publication_details TEXT,
-	comments TEXT,
-	final_comments TEXT,
-	first_text TEXT,
-	mpce_edition_code CHAR(12) -- Link to MPCE database
+CREATE TABLE IF NOT EXISTS `mmf_work` (
+	`work_id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	`uuid` CHAR(36) NOT NULL,
+	`work_identifier` CHAR(12),
+	`translation` VARCHAR(128),
+	`title` TEXT,
+	`comments` TEXT,
+	`bur_references` TEXT,
+	`bur_comments` TEXT,
+	`original_title` TEXT,
+	`translation_comments` TEXT,
+	`description` TEXT,
+	`incipit` TEXT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-CREATE TABLE IF NOT EXISTS mmf_holding (
-	holding_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	edition_id INT NOT NULL,
-	lib_name VARCHAR(255),
-	lib_id INT
+CREATE TABLE IF NOT EXISTS `mmf_edition` (
+	`edition_id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	`work_id` INT,
+	`uuid` CHAR(36) NOT NULL,
+	`work_identifier` CHAR(12),
+	`ed_identifer` CHAR(12),
+	`edition_counter` CHAR(7),
+	`translation` VARCHAR(128),
+	`author` VARCHAR(255),
+	`translator` VARCHAR(255),
+	`short_title` VARCHAR(255),
+	`long_title` TEXT,
+	`collection_title` TEXT,
+	`publication_details` TEXT,
+	`comments` TEXT,
+	`final_comments` TEXT,
+	`mpce_edition_code` CHAR(12) -- Link to MPCE database
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-CREATE TABLE IF NOT EXISTS mmf_lib (
-	lib_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	short_name VARCHAR(255),
-	full_name TEXT
+CREATE TABLE IF NOT EXISTS `mmf_holding` (
+	`holding_id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	`edition_id` INT NOT NULL,
+	`lib_name` VARCHAR(255),
+	`lib_id` INT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-CREATE TABLE IF NOT EXISTS mmf_ref (
-	ref_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	work_id INT NOT NULL,
-	short_name VARCHAR(255),
-	page_num INT,
-	ref_work INT,
-	ref_type INT NOT NULL
+CREATE TABLE IF NOT EXISTS `mmf_lib` (
+	`lib_id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	`short_name` VARCHAR(255),
+	`full_name` TEXT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-CREATE TABLE IF NOT EXISTS mmf_ref_type (
-	ref_type_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	name VARCHAR(255)
+CREATE TABLE IF NOT EXISTS `mmf_ref` (
+	`ref_id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	`work_id` INT NOT NULL,
+	`short_name` VARCHAR(255),
+	`page_num` INT,
+	`ref_work` INT,
+	`ref_type` INT NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-CREATE TABLE IF NOT EXISTS mmf_error (
-	error_id INT AUTO_INCREMENT PRIMARY KEY,
-	filename VARCHAR(255),
-	edition_id INT,
-	work_id INT,
-	text TEXT,
-	error_note VARCHAR(255),
-	date DATE
+CREATE TABLE IF NOT EXISTS `mmf_ref_type` (
+	`ref_type_id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	`name` VARCHAR(255)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE IF NOT EXISTS `mmf_error` (
+	`error_id` INT AUTO_INCREMENT PRIMARY KEY,
+	`filename` VARCHAR(255),
+	`edition_id` INT,
+	`work_id` INT,
+	`text` TEXT,
+	`error_note` VARCHAR(255),
+	`date` DATE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
