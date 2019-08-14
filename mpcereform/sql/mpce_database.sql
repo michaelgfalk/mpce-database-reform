@@ -688,7 +688,7 @@ CREATE TABLE IF NOT EXISTS `condemnation` (
 	`work_code` CHAR(12), -- !FK: work.work_code
 	`edition_notes` CHAR(12),
 	`institution_text` VARCHAR(255),
-	`insitution` CHAR(8), -- !FK: agent_code
+	`insTitution` CHAR(8), -- !FK: agent_code
 	`date` DATE,
 	`judgment` INT, -- !FK: judgment.ID
 	`other_judgment` VARCHAR(255),
